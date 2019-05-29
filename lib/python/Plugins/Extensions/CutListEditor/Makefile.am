@@ -7,5 +7,4 @@ install_PYTHON =	\
 	plugin.py \
 	ui.py
 
-
 dist_install_DATA = keymap.xml

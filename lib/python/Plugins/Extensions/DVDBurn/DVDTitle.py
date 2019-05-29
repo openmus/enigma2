@@ -1,4 +1,4 @@
-from Components.config import ConfigSubsection, ConfigSubList, ConfigInteger, ConfigText, ConfigSelection
+from Components.config import config, ConfigSubsection, ConfigSubList, ConfigInteger, ConfigText, ConfigSelection
 import TitleCutter
 
 class ConfigFixedText(ConfigText):
@@ -7,7 +7,7 @@ class ConfigFixedText(ConfigText):
 	def handleKey(self, key):
 		pass
 
-class Title:
+class DVDTitle:
 	def __init__(self, project):
 		self.properties = ConfigSubsection()
 		self.properties.menutitle = ConfigText(fixed_size = False, visible_width = 80)
@@ -27,13 +27,9 @@ class Title:
 		self.cutlist = [ ]
 		self.chaptermarks = [ ]
 		self.timeCreate = None
+		self.VideoType = -1
 		self.project = project
 		self.length = 0
-		self.VideoType = -1
-		self.VideoPID = -1
-		self.framerate = 0
-		self.progressive = -1
-		self.resolution = (-1,-1)
 
 	def addService(self, service):
 		from os import path
@@ -56,13 +52,13 @@ class Title:
 		self.filesize = path.getsize(self.inputfile)
 		self.estimatedDiskspace = self.filesize
 		self.length = info.getLength(service)
-						
+
 	def addFile(self, filename):
 		from enigma import eServiceReference
 		ref = eServiceReference(1, 0, filename)
 		self.addService(ref)
 		self.project.session.openWithCallback(self.titleEditDone, TitleCutter.CutlistReader, self)
-	
+
 	def titleEditDone(self, cutlist):
 		self.initDVDmenuText(len(self.project.titles))
 		self.cuesheet = cutlist
@@ -80,14 +76,17 @@ class Title:
 		template = template.replace("$c", str(len(self.chaptermarks)+1))
 		template = template.replace("$f", self.inputfile)
 		template = template.replace("$C", self.DVBchannel)
-		
+
 		#if template.find("$A") >= 0:
+		from TitleProperties import languageChoices
 		audiolist = [ ]
 		for audiotrack in self.properties.audiotracks:
 			active = audiotrack.active.getValue()
 			if active:
 				trackstring = audiotrack.format.getValue()
-				trackstring += ' (' + audiotrack.language.getValue() + ')'
+				language = audiotrack.language.getValue()
+				if language in languageChoices:
+					trackstring += ' (' + languageChoices.langdict[language] + ')'
 				audiolist.append(trackstring)
 		audiostring = ', '.join(audiolist)
 		template = template.replace("$A", audiostring)
@@ -122,7 +121,7 @@ class Title:
 		# our demuxer expects *strictly* IN,OUT lists.
 		currently_in = not any(type == CUT_TYPE_IN for pts, type in self.cuesheet)
 		if currently_in:
-			self.cutlist.append(0) # emulate "in" at first		
+			self.cutlist.append(0) # emulate "in" at first
 
 		for (pts, type) in self.cuesheet:
 			#print "pts=", pts, "type=", type, "accumulated_in=", accumulated_in, "accumulated_at=", accumulated_at, "last_in=", last_in
@@ -135,7 +134,7 @@ class Title:
 				self.cutlist.append(pts)
 
 				# accumulate the segment
-				accumulated_in += pts - last_in 
+				accumulated_in += pts - last_in
 				accumulated_at = pts
 				currently_in = False
 
@@ -144,7 +143,7 @@ class Title:
 				# as the in/out points are not.
 				reloc_pts = pts - last_in + accumulated_in
 				self.chaptermarks.append(reloc_pts)
-				
+
 		if len(self.cutlist) > 1:
 			part = accumulated_in / (self.length*90000.0)
 			usedsize = int ( part * self.filesize )
