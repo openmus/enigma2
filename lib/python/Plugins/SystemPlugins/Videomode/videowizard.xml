@@ -9,7 +9,6 @@ self.clearSelectedKeys()
 self.selectKey("OK")
 		</code>
 	</step>
-
 	<step id="modeselection" nextstep="rateselection" timeout="20" timeoutaction="selectnext">
 		<text value="Video mode selection." />
 		<displaytext value="Select video mode" />
@@ -21,10 +20,9 @@ self.selectKey("DOWN")
 self["portpic"].hide()
 		</code>
 	</step>
-
 	<step id="rateselection" timeout="20" timeoutaction="selectnext">
 		<condition>
-self.condition = (self.port != "DVI" or self.mode == "PC")
+self.condition = (self.port != "DVI" and not self.port == "RCA" or self.mode == "PC")
 		</condition>
 		<text value="Refresh rate selection." />
 		<displaytext value="Select refresh rate" />

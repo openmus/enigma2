@@ -87,6 +87,10 @@ class Wlan:
 			for result in scanresults:
 				bssid = result.bssid
 
+				# skip hidden networks
+				if not result.essid:
+					continue
+
 				if result.encode.flags & wififlags.IW_ENCODE_DISABLED > 0:
 					encryption = False
 				elif result.encode.flags & wififlags.IW_ENCODE_NOKEY > 0:
@@ -117,7 +121,7 @@ class Wlan:
 					'bssid': result.bssid,
 					'channel': channel,
 					'encrypted': encryption,
-					'essid': result.essid and strip(self.asciify(result.essid)) or "",
+					'essid': strip(self.asciify(result.essid)),
 					'iface': self.iface,
 					'maxrate' : ifobj._formatBitrate(result.rate[-1][-1]),
 					'noise' : '',#result.quality.nlevel-0x100,
@@ -212,7 +216,7 @@ class wpaSupplicant:
 			return
 
 		fp = file(getWlanConfigName(iface), 'w')
-		fp.write('#WPA Supplicant Configuration by STB-GUI\n')
+		fp.write('#WPA Supplicant Configuration by enigma2\n')
 		fp.write('ctrl_interface=/var/run/wpa_supplicant\n')
 		fp.write('eapol_version=1\n')
 		fp.write('fast_reauth=1\n')
@@ -231,7 +235,7 @@ class wpaSupplicant:
 				fp.write('\tgroup=TKIP\n')
 			elif encryption == 'WPA2':
 				fp.write('\tproto=RSN\n')
- 				fp.write('\tpairwise=CCMP\n')
+				fp.write('\tpairwise=CCMP\n')
 				fp.write('\tgroup=CCMP\n')
 			else:
 				fp.write('\tproto=WPA RSN\n')
@@ -385,6 +389,8 @@ class Status:
 			if "Bit Rate" in line:
 				if "kb" in line:
 					br = line[line.index('Bit Rate')+9 :line.index(' kb/s')]
+				elif "Gb" in line:
+					br = line[line.index('Bit Rate')+9 :line.index(' Gb/s')]
 				else:
 					br = line[line.index('Bit Rate')+9 :line.index(' Mb/s')]
 				if br is not None:

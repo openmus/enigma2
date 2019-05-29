@@ -107,7 +107,7 @@ class PositionerSetup(Screen):
 					self.oldref_stop = True
 				else:
 					for n in nimmanager.nim_slots:
-						if n.config_mode in ("loopthrough_internal", "loopthrough_external", "satposdepends"):
+						if n.config_mode in ("loopthrough", "satposdepends"):
 							root_id = nimmanager.sec.getRoot(n.slot_id, int(n.config.connectedTo.value))
 							if int(n.config.connectedTo.value) == self.feid:
 								self.oldref_stop = True
@@ -162,9 +162,11 @@ class PositionerSetup(Screen):
 			cur.get("modulation", eDVBFrontendParametersSatellite.Modulation_QPSK),
 			cur.get("rolloff", eDVBFrontendParametersSatellite.RollOff_alpha_0_35),
 			cur.get("pilot", eDVBFrontendParametersSatellite.Pilot_Unknown),
-			cur.get("is_id", 0),
-			cur.get("pls_mode", eDVBFrontendParametersSatellite.PLS_Root),
-			cur.get("pls_code", 1))
+			cur.get("is_id", eDVBFrontendParametersSatellite.No_Stream_Id_Filter),
+			cur.get("pls_mode", eDVBFrontendParametersSatellite.PLS_Gold),
+			cur.get("pls_code", eDVBFrontendParametersSatellite.PLS_Default_Gold_Code),
+			cur.get("t2mi_plp_id", eDVBFrontendParametersSatellite.No_T2MI_PLP_Id),
+			cur.get("t2mi_pid", eDVBFrontendParametersSatellite.T2MI_Default_Pid))
 
 		self.tuner.tune(tp)
 		self.isMoving = False
@@ -599,7 +601,7 @@ class PositionerSetup(Screen):
 			self.statusMsg(_("Stepped west"), timeout = self.STATUS_MSG_TIMEOUT)
 		elif entry == "storage":
 			if self.getUsals() is False:
-				menu = [(_("Yes"), "yes"), (_("No"), "no")]
+				menu = [(_("yes"), "yes"), (_("no"), "no")]
 				available_orbos = False
 				orbos = None
 				if self.advanced:
@@ -1342,9 +1344,8 @@ class TunerScreen(ConfigListScreen, Screen):
 			"fec": eDVBFrontendParametersSatellite.FEC_Auto,
 			"fec_s2": eDVBFrontendParametersSatellite.FEC_9_10,
 			"modulation": eDVBFrontendParametersSatellite.Modulation_QPSK,
-			"is_id":0,
-			"pls_mode": eDVBFrontendParametersSatellite.PLS_Root,
-			"pls_code": 1 }
+			"pls_mode": eDVBFrontendParametersSatellite.PLS_Gold,
+			"pls_code": eDVBFrontendParametersSatellite.PLS_Default_Gold_Code }
 		if frontendData is not None:
 			ttype = frontendData.get("tuner_type", "UNKNOWN")
 			defaultSat["system"] = frontendData.get("system", eDVBFrontendParametersSatellite.System_DVB_S)
@@ -1356,9 +1357,11 @@ class TunerScreen(ConfigListScreen, Screen):
 				defaultSat["fec_s2"] = frontendData.get("fec_inner", eDVBFrontendParametersSatellite.FEC_Auto)
 				defaultSat["rolloff"] = frontendData.get("rolloff", eDVBFrontendParametersSatellite.RollOff_alpha_0_35)
 				defaultSat["pilot"] = frontendData.get("pilot", eDVBFrontendParametersSatellite.Pilot_Unknown)
-				defaultSat["is_id"] = frontendData.get("is_id", 0)
-				defaultSat["pls_mode"] = frontendData.get("pls_mode", eDVBFrontendParametersSatellite.PLS_Root)
-				defaultSat["pls_code"] = frontendData.get("pls_code", 1)
+				defaultSat["is_id"] = frontendData.get("is_id", eDVBFrontendParametersSatellite.No_Stream_Id_Filter)
+				defaultSat["pls_mode"] = frontendData.get("pls_mode", eDVBFrontendParametersSatellite.PLS_Gold)
+				defaultSat["pls_code"] = frontendData.get("pls_code", eDVBFrontendParametersSatellite.PLS_Default_Gold_Code)
+				defaultSat["t2mi_plp_id"] = frontendData.get("t2mi_plp_id", eDVBFrontendParametersSatellite.No_T2MI_PLP_Id)
+				defaultSat["t2mi_pid"] = frontendData.get("t2mi_pid", eDVBFrontendParametersSatellite.T2MI_Default_Pid)
 			else:
 				defaultSat["fec"] = frontendData.get("fec_inner", eDVBFrontendParametersSatellite.FEC_Auto)
 			defaultSat["modulation"] = frontendData.get("modulation", eDVBFrontendParametersSatellite.Modulation_QPSK)
@@ -1412,11 +1415,13 @@ class TunerScreen(ConfigListScreen, Screen):
 			(eDVBFrontendParametersSatellite.Pilot_On, _("On")),
 			(eDVBFrontendParametersSatellite.Pilot_Unknown, _("Auto"))])
 		self.scan_sat.is_id = ConfigInteger(default = defaultSat.get("is_id",0), limits = (0, 255))
-		self.scan_sat.pls_mode = ConfigSelection(default = defaultSat["pls_mode"], choices = [
+		self.scan_sat.pls_mode = ConfigSelection(default = defaultSat.get("pls_mode", eDVBFrontendParametersSatellite.PLS_Gold), choices = [
 			(eDVBFrontendParametersSatellite.PLS_Root, _("Root")),
 			(eDVBFrontendParametersSatellite.PLS_Gold, _("Gold")),
 			(eDVBFrontendParametersSatellite.PLS_Combo, _("Combo"))])
-		self.scan_sat.pls_code = ConfigInteger(default = defaultSat.get("pls_code",1), limits = (0, 262142))
+		self.scan_sat.pls_code = ConfigInteger(default = defaultSat.get("pls_code", eDVBFrontendParametersSatellite.PLS_Default_Gold_Code), limits = (0, 262142))
+		self.scan_sat.t2mi_plp_id = ConfigInteger(default = defaultSat.get("t2mi_plp_id", eDVBFrontendParametersSatellite.No_T2MI_PLP_Id), limits = (0, 255))
+		self.scan_sat.t2mi_pid = ConfigInteger(default = defaultSat.get("t2mi_pid", eDVBFrontendParametersSatellite.T2MI_Default_Pid), limits = (0, 8191))
 
 	def initialSetup(self):
 		currtp = self.transponderToString([None, self.scan_sat.frequency.value, self.scan_sat.symbolrate.value, self.scan_sat.polarization.value])
@@ -1454,6 +1459,8 @@ class TunerScreen(ConfigListScreen, Screen):
 					self.list.append(getConfigListEntry(_('Input Stream ID'), self.scan_sat.is_id))
 					self.list.append(getConfigListEntry(_('PLS Mode'), self.scan_sat.pls_mode))
 					self.list.append(getConfigListEntry(_('PLS Code'), self.scan_sat.pls_code))
+				self.list.append(getConfigListEntry(_('T2MI PLP ID'), self.scan_sat.t2mi_plp_id))
+				self.list.append(getConfigListEntry(_('T2MI PID'), self.scan_sat.t2mi_pid))
 		else: # "predefined_transponder"
 			self.list.append(getConfigListEntry(_("Transponder"), self.tuning.transponder))
 			currtp = self.transponderToString([None, self.scan_sat.frequency.value, self.scan_sat.symbolrate.value, self.scan_sat.polarization.value])
@@ -1486,7 +1493,7 @@ class TunerScreen(ConfigListScreen, Screen):
 
 	def updateTransponders(self):
 		if len(self.tuning.sat.choices):
-			transponderlist = nimmanager.getTransponders(int(self.tuning.sat.value))
+			transponderlist = nimmanager.getTransponders(int(self.tuning.sat.value), self.feid)
 			tps = []
 			for transponder in transponderlist:
 				tps.append(self.transponderToString(transponder, scale = 1000))
@@ -1499,7 +1506,7 @@ class TunerScreen(ConfigListScreen, Screen):
 		ConfigListScreen.keyRight(self)
 
 	def keyGo(self):
-		returnvalue = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
+		returnvalue = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1, -1)
 		satpos = int(self.tuning.sat.value)
 		if self.tuning.type.value == "manual_transponder":
 			if self.scan_sat.system.value == eDVBFrontendParametersSatellite.System_DVB_S2:
@@ -1519,11 +1526,13 @@ class TunerScreen(ConfigListScreen, Screen):
 				self.scan_sat.pilot.value,
 				self.scan_sat.is_id.value,
 				self.scan_sat.pls_mode.value,
-				self.scan_sat.pls_code.value)
+				self.scan_sat.pls_code.value,
+				self.scan_sat.t2mi_plp_id.value,
+				self.scan_sat.t2mi_pid.value)
 		elif self.tuning.type.value == "predefined_transponder":
 			transponder = nimmanager.getTransponders(satpos)[self.tuning.transponder.index]
 			returnvalue = (transponder[1] / 1000, transponder[2] / 1000,
-				transponder[3], transponder[4], 2, satpos, transponder[5], transponder[6], transponder[8], transponder[9], transponder[10], transponder[11], transponder[12])
+				transponder[3], transponder[4], 2, satpos, transponder[5], transponder[6], transponder[8], transponder[9], transponder[10], transponder[11], transponder[12], transponder[13], transponder[14])
 		self.close(returnvalue)
 
 	def keyCancel(self):
@@ -1574,13 +1583,13 @@ def PositionerMain(session, **kwargs):
 			session.open(MessageBox, _("No tuner is configured for use with a diseqc positioner!"), MessageBox.TYPE_ERROR)
 
 def PositionerSetupStart(menuid, **kwargs):
-	if menuid == "scan":
-		return [(_("Positioner"), PositionerMain, "positioner_setup", None)]
+	if menuid == "scan" and nimmanager.somethingConnected():
+		return [(_("Positioner setup"), PositionerMain, "positioner_setup", None)]
 	else:
 		return []
 
 def Plugins(**kwargs):
 	if (nimmanager.hasNimType("DVB-S")):
-		return PluginDescriptor(name=_("Positioner"), description = _("Setup your positioner"), where = PluginDescriptor.WHERE_MENU, needsRestart = False, fnc = PositionerSetupStart)
+		return PluginDescriptor(name=_("Positioner setup"), description = _("Setup your positioner"), where = PluginDescriptor.WHERE_MENU, needsRestart = False, fnc = PositionerSetupStart)
 	else:
 		return []

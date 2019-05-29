@@ -48,6 +48,7 @@ class HdmiCECSetupScreen(Screen, ConfigListScreen):
 		}, -2)
 
 		self.list = []
+		self.logpath_entry = None
 		ConfigListScreen.__init__(self, self.list, session = self.session)
 		self.createSetup()
 		self.updateAddress()
@@ -139,8 +140,9 @@ def main(session, **kwargs):
 	session.open(HdmiCECSetupScreen)
 
 def startSetup(menuid):
-	if menuid == "devices_menu":
-		return [(_("HDMI-CEC"), main, "hdmi_cec_setup", 0)]
+	# only show in the menu when set to intermediate or higher
+	if menuid == "video" and config.av.videoport.value == "DVI" and config.usage.setup_level.index >= 1:
+		return [(_("HDMI-CEC setup"), main, "hdmi_cec_setup", 0)]
 	return []
 
 def Plugins(**kwargs):

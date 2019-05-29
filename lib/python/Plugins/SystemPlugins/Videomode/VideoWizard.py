@@ -1,4 +1,3 @@
-from boxbranding import getBoxType
 from Screens.Wizard import WizardSummary
 from Screens.WizardLanguage import WizardLanguage
 from Screens.Rc import Rc
@@ -6,22 +5,12 @@ from VideoHardware import video_hw
 
 from Components.Pixmap import Pixmap
 from Components.config import config, ConfigBoolean, configfile
+from Components.SystemInfo import SystemInfo
 
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Tools.HardwareInfo import HardwareInfo
 
 config.misc.showtestcard = ConfigBoolean(default = False)
-
-try:
-	file = open("/proc/stb/info/chipset", "r")
-	chipset = file.readline().strip()
-	file.close()
-except:
-	chipset = "unknown"
-
-has_rca = False
-if getBoxType() in ('mutant51', 'ax51', 'gb800seplus', 'gb800ueplus', 'gbquad', 'gbquadplus', 'gbipbox', 'gbultra', 'gbultraue', 'gbultraueh', 'gbultrase', 'spycat', 'quadbox2400', 'gbx1', 'gbx2', 'gbx3', 'gbx3h'):
-	has_rca = True
 
 class VideoWizardSummary(WizardSummary):
 	def __init__(self, session, parent):
@@ -71,6 +60,7 @@ class VideoWizard(WizardLanguage, Rc):
 		self.mode = None
 		self.rate = None
 
+
 	def createSummary(self):
 		print "[VideoWizard] createSummary"
 		from Screens.Wizard import WizardSummary
@@ -92,8 +82,6 @@ class VideoWizard(WizardLanguage, Rc):
 				descr = port
 				if descr == 'DVI' and has_hdmi:
 					descr = 'HDMI'
-				if descr == 'Scart' and has_rca:
-					descr = 'RCA'
 				if port != "DVI-PC":
 					list.append((descr,port))
 		list.sort(key = lambda x: x[0])
@@ -114,8 +102,6 @@ class VideoWizard(WizardLanguage, Rc):
 			picname = self.selection
 			if picname == 'DVI' and has_hdmi:
 				picname = "HDMI"
-			if picname == 'Scart' and has_rca:
-				picname = "RCA"					
 			self["portpic"].instance.setPixmapFromFile(resolveFilename(SCOPE_PLUGINS, "SystemPlugins/Videomode/" + picname + ".png"))
 
 	def inputSelect(self, port):
@@ -148,12 +134,13 @@ class VideoWizard(WizardLanguage, Rc):
 	def modeSelect(self, mode):
 		ratesList = self.listRates(mode)
 		print "[VideoWizard] ratesList:", ratesList
-		if self.port == "DVI" and mode in ("720p", "1080i", "1080p", "2160p") and chipset != 'bcm7405':
-			self.rate = "multi"
-			self.hw.setMode(port = self.port, mode = mode, rate = "multi")
-		elif self.port == "DVI" and mode in ("720p", "1080i"):
-			self.rate = "multi"
-			self.hw.setMode(port = self.port, mode = mode, rate = "multi")
+		if self.port == "DVI" and mode in ("720p", "1080i", "1080p", "2160p", "2160p30"):
+			if SystemInfo["Has24hz"]:
+				self.rate = "auto"
+				self.hw.setMode(port = self.port, mode = mode, rate = "auto")
+			else:
+				self.rate = "multi"
+				self.hw.setMode(port = self.port, mode = mode, rate = "multi")
 		else:
 			self.hw.setMode(port = self.port, mode = mode, rate = ratesList[0][0])
 

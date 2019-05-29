@@ -10,6 +10,7 @@ from Tools.Directories import resolveFilename, SCOPE_METADIR
 from Tools.HardwareInfo import HardwareInfo
 from time import time
 
+
 class SoftwareTools(PackageInfoHandler):
 	lastDownloadDate = None
 	NetworkConnectionAvailable = None
