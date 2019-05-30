@@ -77,12 +77,15 @@ def skin_user_skinname():
 # example: loadSkin("nemesis_greenline/skin.xml")
 config.skin = ConfigSubsection()
 if SystemInfo["HasFullHDSkinSupport"]:
-	if os.path.isfile('/usr/share/enigma2/GigabluePax/skin.xml'):
-		DEFAULT_SKIN = "GigabluePax/skin.xml"
+	if os.path.isfile('/usr/share/enigma2/OctEtFHD/skin.xml'):
+		DEFAULT_SKIN = "OctEtFHD/skin.xml"
 	else:
 		DEFAULT_SKIN = "PLi-FullNightHD/skin.xml"
+else:
+	if os.path.isfile('/usr/share/enigma2/OctEtSD/skin.xml'):
+		DEFAULT_SKIN = "OctEtSD/skin.xml"
 	else:
-                DEFAULT_SKIN = "PLi-HD/skin.xml"
+DEFAULT_SKIN = "PLi-HD/skin.xml"
 # on SD hardware, PLi-HD will not be available
 if not fileExists(resolveFilename(SCOPE_SKIN, DEFAULT_SKIN)):
 	# in that case, fallback to Magic (which is an SD skin)
