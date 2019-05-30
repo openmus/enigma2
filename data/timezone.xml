@@ -8,7 +8,7 @@
 	<zone name="(GMT-08:00) Pacific Time (US and Canada), Tijuana" zone="America/Tijuana" />
 	<zone name="(GMT-07:00) Arizona" zone="MST" />
 	<zone name="(GMT-07:00) Chihuahua, La Paz, Mazatlan" zone="MST7MDT" />
-	<zone name="(GMT-07:00) Mountain Time (US &amp; Canada) " zone="MST7MDT" />
+	<zone name="(GMT-07:00) Mountain Time (US and Canada)" zone="MST7MDT" />
 	<zone name="(GMT-06:00) Central America" zone="CST6CDT" />
 	<zone name="(GMT-06:00) Central Time (US and Canada)" zone="CST6CDT" />
 	<zone name="(GMT-06:00) Guadalajara, Mexico City, Monterrey" zone="CST6CDT" />
@@ -37,12 +37,13 @@
 	<zone name="(GMT+01:00) Sarajevo, Skopje, Warsaw, Zagreb" zone="CET" />
 	<zone name="(GMT+01:00) West Central Africa" zone="Africa/Kinshasa" />
 	<zone name="(GMT+01:00) Algiers, Tunis" zone="Africa/Kinshasa" />
-	<zone name="(GMT+02:00) Athens, Istanbul" zone="Europe/Istanbul" />
+	<zone name="(GMT+02:00) Athens" zone="Europe/Athens" />
 	<zone name="(GMT+02:00) Bucharest" zone="Europe/Istanbul" />
 	<zone name="(GMT+02:00) Harare, Pretoria" zone="Africa/Harare" />
-	<zone name="(GMT+02:00) Helsinki, Kyiv, Sofia" zone="Europe/Istanbul" />
-	<zone name="(GMT+02:00) Riga, Tallinn, Vilnius" zone="Europe/Istanbul" />
+	<zone name="(GMT+02:00) Helsinki, Kyiv, Sofia" zone="Europe/Athens" />
 	<zone name="(GMT+02:00) Jerusalem" zone="Asia/Jerusalem" />
+	<zone name="(GMT+02:00) Riga, Tallinn, Vilnius" zone="Europe/Athens" />
+	<zone name="(GMT+03:00) Istanbul" zone="Europe/Istanbul" />
 	<zone name="(GMT+03:00) Baghdad" zone="Asia/Baghdad" />
 	<zone name="(GMT+03:00) Kuwait, Riyadh" zone="Asia/Riyadh" />
 	<zone name="(GMT+03:00) Minsk" zone="Europe/Moscow" />

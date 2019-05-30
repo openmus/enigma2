@@ -8,10 +8,6 @@ PyObject *getInfoObject(int w)
 {
 	switch (w)
 	{
-		case iServiceInformation::sHBBTVUrl:
-		{
-			return self->getHbbTVApplications();
-		}
 		case iServiceInformation::sTransponderData:
 		{
 			ePyObject ret = PyDict_New();
@@ -130,14 +126,8 @@ PyObject *getInfoObject(int w)
 	return Py_None;
 }
 
-PyObject *getHbbTVApplications()
-{
-	return self->getHbbTVApplications();
-}
-
 PyObject *getAITApplications()
 {
-	ePyObject tuple = PyTuple_New(2);
 	std::map<int, std::string> aitlist;
 	self->getAITApplications(aitlist);
 	if (!aitlist.empty())

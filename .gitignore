@@ -16,7 +16,6 @@ depcomp
 enigma2_config.h
 enigma2_config.h.in
 enigma2.pc
-.idea/
 index-enigma2.xml
 INSTALL
 install-sh
@@ -38,5 +37,5 @@ aclocal-copy
 compile
 .dirstamp
 mipsel-oe-linux-libtool
-*.patch
-*.diff
+/.vs
+.vscode/

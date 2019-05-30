@@ -78,9 +78,9 @@ void eListboxServiceContent::setRoot(const eServiceReference &root, bool justSet
 	ASSERT(m_service_center);
 
 	if (m_service_center->list(m_root, m_lst))
-		eDebug("no list available!");
+		eDebug("[eListboxServiceContent] no list available!");
 	else if (m_lst->getContent(m_list))
-		eDebug("getContent failed");
+		eDebug("[eListboxServiceContent] getContent failed");
 
 	FillFinished();
 }
@@ -157,7 +157,10 @@ int eListboxServiceContent::getNextBeginningWithChar(char c)
 	{
 		std::string text;
 		ePtr<iStaticServiceInformation> service_info;
-		m_service_center->info(*i, service_info);
+		if (m_service_center->info(*i, service_info))
+		{
+			continue; // failed to find service handler
+		}
 		service_info->getName(*i, text);
 //		printf("%c\n", text.c_str()[0]);
 		int idx=0;
@@ -317,10 +320,7 @@ void eListboxServiceContent::sort()
 DEFINE_REF(eListboxServiceContent);
 
 eListboxServiceContent::eListboxServiceContent()
-	:m_visual_mode(visModeSimple),m_cursor_number(0), m_saved_cursor_number(0), m_size(0), m_current_marked(false),
-	m_itemheight(25), m_hide_number_marker(false), m_servicetype_icon_mode(0), m_progressbar_border_width(2),
-	m_crypto_icon_mode(0), m_record_indicator_mode(0), m_column_width(0), m_progressbar_height(6),
-	m_nonplayable_margins(10), m_items_distances(8)
+	:m_visual_mode(visModeSimple), m_size(0), m_current_marked(false), m_itemheight(25), m_hide_number_marker(false), m_servicetype_icon_mode(0), m_crypto_icon_mode(0), m_record_indicator_mode(0), m_column_width(0), m_progressbar_height(6), m_progressbar_border_width(2), m_nonplayable_margins(10), m_items_distances(8)
 {
 	memset(m_color_set, 0, sizeof(m_color_set));
 	cursorHome();
@@ -414,26 +414,26 @@ int eListboxServiceContent::setCurrentMarked(bool state)
 			{
 				ePtr<iMutableServiceList> list;
 				if (m_lst->startEdit(list))
-					eDebug("no editable list");
+					eDebug("[eListboxServiceContent] no editable list");
 				else
 				{
 					eServiceReference ref;
 					getCurrent(ref);
 					if(!ref)
-						eDebug("no valid service selected");
+						eDebug("[eListboxServiceContent] no valid service selected");
 					else
 					{
 						int pos = cursorGet();
-						eDebugNoNewLineStart("move %s to %d ", ref.toString().c_str(), pos);
+						eDebugNoNewLineStart("[eListboxServiceContent] move %s to %d ", ref.toString().c_str(), pos);
 						if (list->moveService(ref, cursorGet()))
-							eDebugNoNewLineEnd("failed");
+							eDebugNoNewLine("failed\n");
 						else
-							eDebugNoNewLineEnd("ok");
+							eDebugNoNewLine("ok\n");
 					}
 				}
 			}
 			else
-				eDebug("no list available!");
+				eDebug("[eListboxServiceContent] no list available!");
 		}
 	}
 
@@ -705,7 +705,6 @@ void eListboxServiceContent::paint(gPainter &painter, eWindowStyle &style, const
 		bool serviceFallback = false;
 		int isplayable_value;
 
-#ifndef FORCE_SERVICEAVAIL
 		if (!marked && isPlayable && service_info && m_is_playable_ignore.valid())
 		{
 			isplayable_value = service_info->isPlayable(*m_cursor, m_is_playable_ignore);
@@ -728,8 +727,6 @@ void eListboxServiceContent::paint(gPainter &painter, eWindowStyle &style, const
 				}
 			}
 		}
-#endif
-
 		if (m_record_indicator_mode == 3 && isRecorded)
 		{
 			if (m_color_set[serviceRecorded])
@@ -855,7 +852,7 @@ void eListboxServiceContent::paint(gPainter &painter, eWindowStyle &style, const
 					tmp.setWidth(((!isPlayable || m_column_width == -1 || (!piconPixmap && !m_column_width)) ? tmp.width() : m_column_width) - xoffs);
 				}
 
-				eTextPara *para = new eTextPara(tmp);
+				ePtr<eTextPara> para = new eTextPara(tmp);
 				para->setFont(m_element_font[e]);
 				para->renderString(text.c_str());
 
@@ -891,7 +888,7 @@ void eListboxServiceContent::paint(gPainter &painter, eWindowStyle &style, const
 								painter.blitScale(piconPixmap,
 									eRect(area.left(), area.top(), iconWidth, area.height()),
 									area,
-									gPainter::BT_ALPHABLEND | gPainter::BT_KEEP_ASPECT_RATIO);
+									gPainter::BT_ALPHABLEND | gPainter::BT_KEEP_ASPECT_RATIO | gPainter::BT_HALIGN_CENTER | gPainter::BT_VALIGN_CENTER);
 								painter.clippop();
 							}
 						}
@@ -945,7 +942,7 @@ void eListboxServiceContent::paint(gPainter &painter, eWindowStyle &style, const
 							}
 							int correction = (area.height() - pixmap_size.height()) / 2;
 							area.moveBy(offset);
-							if (service_info->isCrypted())
+							if (service_info && service_info->isCrypted())
 							{
 								if (m_crypto_icon_mode == 2)
 								{
@@ -1016,7 +1013,7 @@ void eListboxServiceContent::paint(gPainter &painter, eWindowStyle &style, const
 						area = m_element_position[celServiceName];
 						if (m_element_position[celServiceEventProgressbar].left() == 0)
 							area.setLeft(0);
-						xoffset = pixmap_size.width() + m_items_distances;
+						xoffset = pixmap_size.width() + m_items_distances;			
 					}
 					else
 						area = m_element_position[celServiceNumber];

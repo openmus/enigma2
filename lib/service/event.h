@@ -88,7 +88,6 @@ class eServiceEvent: public iObject
 	static std::string m_language, m_language_alternative;
 	// .. additional info
 public:
-	eServiceEvent();
 #ifndef SWIG
 	RESULT parseFrom(Event *evt, int tsidonid=0);
 	RESULT parseFrom(ATSCEvent *evt);

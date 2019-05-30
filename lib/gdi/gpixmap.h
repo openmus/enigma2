@@ -15,14 +15,14 @@ struct gRGB
 	union {
 #if BYTE_ORDER == LITTLE_ENDIAN
 		struct {
-			unsigned char b, g, r, a;
+			uint8_t b, g, r, a;
 		};
 #else
 		struct {
-			unsigned char a, r, g, b;
+			uint8_t a, r, g, b;
 		};
 #endif
-		unsigned int value;
+		uint32_t value;
 	};
 	gRGB(int r, int g, int b, int a=0): b(b), g(g), r(r), a(a)
 	{
@@ -184,21 +184,24 @@ public:
 		blitAlphaTest=1,
 		blitAlphaBlend=2,
 		blitScale=4,
-		blitKeepAspectRatio=8
+		blitKeepAspectRatio=8,
+		blitHAlignCenter = 16,
+		blitHAlignRight = 32,
+		blitVAlignCenter = 64,
+		blitVAlignBottom = 128
 	};
 
 	enum {
 		accelNever = -1,
-#ifdef FORCE_NO_ACCELNEVER	
-		accelAuto = -1,
-#else
 		accelAuto = 0,
-#endif	
 		accelAlways = 1,
 	};
 
+	typedef void (*gPixmapDisposeCallback)(gPixmap* pixmap);
+
 	gPixmap(gUnmanagedSurface *surface);
 	gPixmap(eSize, int bpp, int accel = 0);
+	gPixmap(int width, int height, int bpp, gPixmapDisposeCallback on_dispose, int accel = accelAuto);
 
 	gUnmanagedSurface *surface;
 
@@ -208,7 +211,7 @@ public:
 	eSize size() const { return eSize(surface->x, surface->y); }
 
 private:
-	bool must_delete_surface;
+	gPixmapDisposeCallback on_dispose;
 
 	friend class gDC;
 	void fill(const gRegion &clip, const gColor &color);

@@ -45,9 +45,11 @@ public:
 	PyObject *getFlag(const eServiceReference &service);
 	PyObject *getCachedPid(const eServiceReference &service, int id);
 	bool isCrypted(const eServiceReference &service);
+	bool hasCAID(const eServiceReference &service, unsigned int caid);
 	RESULT addCAID(const eServiceReference &service, unsigned int caid);
 	RESULT addFlag(const eServiceReference &service, unsigned int flagmask);
 	RESULT removeFlag(const eServiceReference &service, unsigned int flagmask);
+	void removeServicesFlag(unsigned int flagmask);
 	PyObject *readSatellites(SWIG_PYOBJECT(ePyObject) sat_list, SWIG_PYOBJECT(ePyObject) sat_dict, SWIG_PYOBJECT(ePyObject) tp_dict);
 	PyObject *readTerrestrials(SWIG_PYOBJECT(ePyObject) ter_list, SWIG_PYOBJECT(ePyObject) tp_dict);
 	PyObject *readCables(SWIG_PYOBJECT(ePyObject) cab_list, SWIG_PYOBJECT(ePyObject) tp_dict);

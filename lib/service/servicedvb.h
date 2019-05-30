@@ -33,7 +33,7 @@ private:
 	RESULT lookupService(ePtr<eDVBService> &ptr, const eServiceReference &ref);
 };
 
-class eBouquet;
+struct eBouquet;
 
 class eDVBServiceList: public iListableService, public iMutableServiceList
 {
@@ -113,7 +113,7 @@ public:
 	RESULT subtitle(ePtr<iSubtitleOutput> &ptr);
 	RESULT audioDelay(ePtr<iAudioDelay> &ptr);
 	RESULT rdsDecoder(ePtr<iRdsDecoder> &ptr);
-	RESULT keys(ePtr<iServiceKeys> &ptr) { ptr = 0; return -1; }
+	RESULT keys(ePtr<iServiceKeys> &ptr) { ptr = nullptr; return -1; }
 
 		// iStreamedService
 	RESULT streamed(ePtr<iStreamedService> &ptr);
@@ -142,7 +142,6 @@ public:
 	std::string getInfoString(int w);
 	ePtr<iDVBTransponderData> getTransponderData();
 	void getAITApplications(std::map<int, std::string> &aitlist);
-	PyObject * getHbbTVApplications();
 	void getCaIds(std::vector<int> &caids, std::vector<int> &ecmpids, std::vector<std::string> &ecmdatabytes);
 
 		// iAudioTrackSelection
@@ -214,8 +213,6 @@ protected:
 	eDVBServicePMTHandler m_service_handler_timeshift;
 	eDVBServiceEITHandler m_event_handler;
 	int m_current_audio_pid;
-
-	bool m_qpip_mode;
 
 	eDVBServicePlay(const eServiceReference &ref, eDVBService *service);
 

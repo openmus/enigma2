@@ -10,7 +10,6 @@ base_libenigma_base_a_SOURCES = \
 	base/ebase.cpp \
 	base/eenv.cpp \
 	base/eerror.cpp \
-	base/eerroroutput.cpp \
 	base/elock.cpp \
 	base/encoding.cpp \
 	base/estring.cpp \
@@ -22,6 +21,7 @@ base_libenigma_base_a_SOURCES = \
 	base/rawfile.cpp \
 	base/smartptr.cpp \
 	base/thread.cpp \
+	base/httpsstream.cpp \
 	base/httpstream.cpp \
 	base/wrappers.cpp
 
@@ -38,7 +38,6 @@ baseinclude_HEADERS = \
 	base/ebase.h \
 	base/eenv.h \
 	base/eerror.h \
-	base/eerroroutput.h \
 	base/elock.h \
 	base/encoding.h \
 	base/eptrlist.h \
@@ -56,5 +55,6 @@ baseinclude_HEADERS = \
 	base/ringbuffer.h \
 	base/smartptr.h \
 	base/thread.h \
+	base/httpsstream.h \
 	base/httpstream.h \
 	base/wrappers.h

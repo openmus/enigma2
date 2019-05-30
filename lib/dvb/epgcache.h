@@ -29,7 +29,7 @@
 #include <lib/service/event.h>
 #include <lib/python/python.h>
 
-class eventData;
+struct eventData;
 class eServiceReferenceDVB;
 class eDVBServicePMTHandler;
 
@@ -266,8 +266,8 @@ public:
 	};
 	eFixedMessagePump<Message> messages;
 private:
-	friend class channel_data;
-	friend class eventData;
+	friend struct channel_data;
+	friend struct eventData;
 	static eEPGCache *instance;
 
 	typedef std::map<iDVBChannel*, channel_data*> ChannelMap;
@@ -285,6 +285,7 @@ private:
 	updateMap channelLastUpdated;
 	std::string m_filename;
 	bool m_running;
+	bool load_epg;
 
 #ifdef ENABLE_PRIVATE_EPG
 	contentMaps content_time_tables;
@@ -355,7 +356,9 @@ public:
 		SIMILAR_BROADCASTINGS_SEARCH,
 		EXAKT_TITLE_SEARCH,
 		PARTIAL_TITLE_SEARCH,
-		START_TITLE_SEARCH
+		START_TITLE_SEARCH,
+		END_TITLE_SEARCH,
+		PARTIAL_DESCRIPTION_SEARCH
 	};
 	enum {
 		CASE_CHECK,

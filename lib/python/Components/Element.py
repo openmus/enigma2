@@ -101,8 +101,7 @@ class Element(object):
 	suspended = property(lambda self: self.__suspended, setSuspend)
 
 	def checkSuspend(self):
-		if self.downstream_elements:
-			self.suspended = reduce(lambda x, y: x and y.__suspended, self.downstream_elements, True)
+		self.suspended = reduce(lambda x, y: x and y.__suspended, self.downstream_elements, True)
 
 	def doSuspend(self, suspend):
 		pass

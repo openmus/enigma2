@@ -3,7 +3,6 @@ from time import localtime, mktime, gmtime, time
 from enigma import iServiceInformation, eServiceCenter, eServiceReference, getBestPlayableServiceReference
 from timer import TimerEntry
 import RecordTimer
-
 from Tools.CIHelper import cihelper
 from Components.config import config
 
@@ -178,12 +177,12 @@ class TimerSanityCheck:
 		newTimerTunerType = None
 		cnt = 0
 		idx = 0
+		overlaplist = []
 		is_ci_use = 0
 		is_ci_timer_conflict = 0
-		overlaplist = []
 
 		ci_timer = False
-		if config.misc.use_ci_assignment.value and cihelper.ServiceIsAssigned(self.newtimer.service_ref.ref):
+		if config.misc.use_ci_assignment.value and cihelper.ServiceIsAssigned(self.newtimer.service_ref.ref, self.newtimer.state) and not (self.newtimer.record_ecm and not self.newtimer.descramble):
 			ci_timer = self.newtimer
 			ci_timer_begin = ci_timer.begin
 			ci_timer_end = ci_timer.end
@@ -257,18 +256,25 @@ class TimerSanityCheck:
 			else:
 				print "[TimerSanityCheck] bug: unknown flag!"
 
-			if ci_timer and cihelper.ServiceIsAssigned(timer.service_ref.ref):
+			if ci_timer and timer != ci_timer and not is_ci_timer_conflict and cihelper.ServiceIsAssigned(timer.service_ref.ref, timer.state) and not (timer.record_ecm and not timer.descramble):
 				if event[1] == self.bflag:
 					timer_begin = event[0]
 					timer_end = event[0] + (timer.end - timer.begin)
 				else:
 					timer_end = event[0]
 					timer_begin = event[0] - (timer.end - timer.begin)
-				if timer != ci_timer:
-					for ci_ev in ci_timer_events:
-						if (ci_ev[0] >= timer_begin and ci_ev[0] <= timer_end) or (ci_ev[1] >= timer_begin and ci_ev[1] <= timer_end):
-							if ci_timer.service_ref.ref != timer.service_ref.ref:
+				for ci_ev in ci_timer_events:
+					if (ci_ev[0] >= timer_begin and ci_ev[0] <= timer_end) or (ci_ev[1] >= timer_begin and ci_ev[1] <= timer_end):
+						if ci_timer.service_ref.ref != timer.service_ref.ref:
+							if cihelper.canMultiDescramble(timer.service_ref.ref, timer.state):
+								getUnsignedDataRef1 = ci_timer.service_ref.ref.getUnsignedData
+								getUnsignedDataRef2 = timer.service_ref.ref.getUnsignedData
+								for x in (4, 2, 3):
+									if getUnsignedDataRef1.getUnsignedData(x) != getUnsignedDataRef2.getUnsignedData(x):
+										is_ci_timer_conflict = 1
+							else:
 								is_ci_timer_conflict = 1
+							if is_ci_timer_conflict:
 								break
 				if is_ci_timer_conflict == 1:
 					if ConflictTimer is None:
@@ -281,7 +287,7 @@ class TimerSanityCheck:
 			idx += 1
 
 		if ConflictTimer is None:
-			print "[TimerSanityCheck] no conflict found."
+			print "[TimerSanityCheck] conflict not found!"
 			return True
 
 ##################################################################################

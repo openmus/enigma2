@@ -1,21 +1,21 @@
-from Screens.About import CommitInfo
 from Screens.ChoiceBox import ChoiceBox
 from Screens.MessageBox import MessageBox
 from Screens.ParentalControlSetup import ProtectedScreen
 from Screens.Screen import Screen
 from Screens.Standby import TryQuitMainloop
 from Screens.TextBox import TextBox
+from Screens.About import CommitInfo
 from Components.config import config
+from Components.About import about
 from Components.ActionMap import ActionMap
 from Components.Ipkg import IpkgComponent
 from Components.Sources.StaticText import StaticText
 from Components.Slider import Slider
 from Tools.BoundFunction import boundFunction
-from enigma import eTimer, eDVBDB
-from boxbranding import getBoxType, getImageVersion, getMachineBuild
 from Tools.Directories import fileExists
+from enigma import eTimer, getBoxType, eDVBDB
 from urllib2 import urlopen
-import socket
+import datetime, os
 
 class UpdatePlugin(Screen, ProtectedScreen):
 	skin = """
@@ -75,85 +75,42 @@ class UpdatePlugin(Screen, ProtectedScreen):
 	def checkTraficLight(self):
 		self.activityTimer.callback.remove(self.checkTraficLight)
 		self.activityTimer.start(100, False)
-
-		currentTimeoutDefault = socket.getdefaulttimeout()
-		socket.setdefaulttimeout(3)
 		message = ""
 		picon = None
-		default = True
 		try:
 			# TODO: Use Twisted's URL fetcher, urlopen is evil. And it can
 			# run in parallel to the package update.
-			url = "http://image.openmips.com/status/%s/" % (getImageVersion())
+			url = "https://openpli.org/status/"
 			try:
 				status = urlopen(url, timeout=5).read().split('!', 1)
-				print status
 			except:
-				# bypass the certificate check
+				# OpenPli 5.0 uses python 2.7.11 and here we need to bypass the certificate check
 				from ssl import _create_unverified_context
 				status = urlopen(url, timeout=5, context=_create_unverified_context()).read().split('!', 1)
 				print status
-			# prefer getMachineBuild
-			if getMachineBuild() in status[0].split(','):
-				message = len(status) > 1 and status[1] or _("The current software might not be stable.\nFor more information see %s.") % ("http://image.openmips.com")
+			if getBoxType() in status[0].split(','):
+				message = len(status) > 1 and status[1] or _("The current image might not be stable.\nFor more information see %s.") % ("www.openpli.org")
+				# strip any HTML that may be in the message, but retain line breaks
+				import re
+				message = message.replace("<br />", "\n\n").replace("<br>", "\n\n")
+				message = re.sub('<[^<]+?>', '', re.sub('&#8209;', '-', message))
 				picon = MessageBox.TYPE_ERROR
-				default = False
-			# only use getBoxType if no getMachineBuild
-			elif getBoxType() in status[0].split(','):
-				message = len(status) > 1 and status[1] or _("The current software might not be stable.\nFor more information see %s.") % ("http://image.openmips.com")
-				picon = MessageBox.TYPE_ERROR
-				default = False
 		except:
-			message = _("The status of the current software could not be checked because %s can not be reached.") % ("http://image.openmips.com")
+			message = _("The status of the current image could not be checked because %s can not be reached.") % ("www.openpli.org")
 			picon = MessageBox.TYPE_ERROR
-			default = False
-		socket.setdefaulttimeout(currentTimeoutDefault)
-		if default:
-			self.showDisclaimer()
-		else:
+		if message != "":
 			message += "\n" + _("Do you want to update your receiver?")
-			self.session.openWithCallback(self.startActualUpdate, MessageBox, message, default = default, picon = picon)
-
-	def showDisclaimer(self, justShow=False):
-		if config.usage.show_update_disclaimer.value or justShow:
-			message = _("With this disclaimer the openMips team is informing you that we are working with nightly builds and it might be that after the upgrades your set top box \
-is not anymore working as expected. Therefore it is recommended to create backups. If something went wrong you can easily and quickly restore. \
-When you discover 'bugs' please keep them reported on www.gigablue-support.com.\n\nDo you understand this?")
-			list = not justShow and [(_("no"), False), (_("yes"), True), (_("yes") + " " + _("and never show this message again"), "never")] or []
-			self.session.openWithCallback(boundFunction(self.disclaimerCallback, justShow), MessageBox, message, list=list,  title=_("Disclaimer"))
+			self.session.openWithCallback(self.startActualUpdate, MessageBox, message, picon = picon)
 		else:
 			self.startActualUpdate(True)
 
-	def disclaimerCallback(self, justShow, answer):
-		if answer == "never":
-			config.usage.show_update_disclaimer.value = False
-			config.usage.show_update_disclaimer.save()
-		if justShow and answer:
-			self.ipkgCallback(IpkgComponent.EVENT_DONE, None)
-		else:
-			self.startActualUpdate(answer)
-
 	def getLatestImageTimestamp(self):
-		currentTimeoutDefault = socket.getdefaulttimeout()
-		socket.setdefaulttimeout(3)
-		try:
-			# TODO: Use Twisted's URL fetcher, urlopen is evil. And it can
-			# run in parallel to the package update.
-			from time import strftime
-			from datetime import datetime
-			url = "http://image.openmips.com/%s/%s/build-timestamp" % (getImageVersion(), getBoxType())
+		def gettime(url):
 			try:
-				latestImageTimestamp = datetime.fromtimestamp(int(urlopen(url, timeout=5).read())).strftime(_("%Y-%m-%d %H:%M"))
+				return str(datetime.datetime.strptime(urlopen("%s/Packages.gz" % url).info()["Last-Modified"], '%a, %d %b %Y %H:%M:%S %Z'))
 			except:
-				# bypass the certificate check
-				from ssl import _create_unverified_context
-				latestImageTimestamp = datetime.fromtimestamp(int(urlopen(url, timeout=5, context=_create_unverified_context()).read())).strftime(_("%Y-%m-%d %H:%M"))
-		except:
-			latestImageTimestamp = ""
-		print latestImageTimestamp
-		print "[SoftwareUpdate] latestImageTimestamp:", latestImageTimestamp
-		socket.setdefaulttimeout(currentTimeoutDefault)
-		return latestImageTimestamp
+				return ""
+		return sorted([gettime(open("/etc/opkg/%s" % file, "r").readlines()[0].split()[2]) for file in os.listdir("/etc/opkg") if not file.startswith("3rd-party") and file not in ("arch.conf", "opkg.conf")], reverse=True)[0]
 
 	def startActualUpdate(self,answer):
 		if answer:
@@ -217,25 +174,24 @@ When you discover 'bugs' please keep them reported on www.gigablue-support.com.\
 				if self.total_packages:
 					latestImageTimestamp = self.getLatestImageTimestamp()
 					if latestImageTimestamp:
-						message = _("Latest available openMips %s build is from: %s") % (getImageVersion(), self.getLatestImageTimestamp()) + "\n"
-						message += _("Do you want to update your receiver?") + "\n"
+						message = _("Do you want to update your receiver to %s?") % latestImageTimestamp + "\n"
 					else:
 						message = _("Do you want to update your receiver?") + "\n"
 					message += "(" + (ngettext("%s updated package available", "%s updated packages available", self.total_packages) % self.total_packages) + ")"
 					if self.total_packages > 150:
+						choices = [(_("Update and reboot"), "cold")]
 						message += " " + _("Reflash recommended!")
-					choices = [(_("Update and reboot (recommended)"), "cold"),
-						(_("Update and ask to reboot"), "hot"),
-						#(_("Update channel list only"), "channels"),
-						(_("Show packages to be upgraded"), "showlist")]
+					else:
+						choices = [(_("Update and reboot (recommended)"), "cold"),
+						(_("Update and ask to reboot"), "hot")]
+					choices.append((_("Update channel list only"), "channels"))
+					choices.append((_("Show packages to be upgraded"), "showlist"))
 				else:
 					message = _("No updates available")
 					choices = []
 				if fileExists("/home/root/ipkgupgrade.log"):
 					choices.append((_("Show latest upgrade log"), "log"))
 				choices.append((_("Show latest commits"), "commits"))
-				if not config.usage.show_update_disclaimer.value:
-					choices.append((_("Show disclaimer"), "disclaimer"))
 				choices.append((_("Cancel"), ""))
 				self.session.openWithCallback(self.startActualUpgrade, ChoiceBox, title=message, list=choices, windowTitle=self.title)
 			elif self.channellist_only > 0:
@@ -291,14 +247,12 @@ When you discover 'bugs' please keep them reported on www.gigablue-support.com.\
 			self.ipkg.startCmd(IpkgComponent.CMD_LIST, args = {'installed_only': True})
 		elif answer[1] == "commits":
 			self.session.openWithCallback(boundFunction(self.ipkgCallback, IpkgComponent.EVENT_DONE, None), CommitInfo)
-		elif answer[1] == "disclaimer":
-			self.showDisclaimer(justShow=True)
 		elif answer[1] == "showlist":
 			text = "\n".join([x[0] for x in sorted(self.ipkg.getFetchedList(), key=lambda d: d[0])])
 			self.session.openWithCallback(boundFunction(self.ipkgCallback, IpkgComponent.EVENT_DONE, None), TextBox, text, _("Packages to update"), True)
 		elif answer[1] == "log":
 			text = open("/home/root/ipkgupgrade.log", "r").read()
-			self.session.openWithCallback(boundFunction(self.ipkgCallback, IpkgComponent.EVENT_DONE, None), TextBox, text, _("Packages upgraded"), True)
+			self.session.openWithCallback(boundFunction(self.ipkgCallback, IpkgComponent.EVENT_DONE, None), TextBox, text, _("Latest upgrade log"), True)
 		else:
 			self.ipkg.startCmd(IpkgComponent.CMD_UPGRADE, args = {'test_only': False})
 

@@ -16,7 +16,7 @@ from Screens.InfoBarGenerics import InfoBarShowHide, \
 	InfoBarEPG, InfoBarSeek, InfoBarInstantRecord, InfoBarRedButton, InfoBarTimerButton, InfoBarVmodeButton, \
 	InfoBarAudioSelection, InfoBarAdditionalInfo, InfoBarNotifications, InfoBarDish, InfoBarUnhandledKey, \
 	InfoBarSubserviceSelection, InfoBarShowMovies, InfoBarTimeshift,  \
-	InfoBarServiceNotifications, InfoBarPVRState, InfoBarCueSheetSupport, InfoBarBuffer, InfoBarSimpleEventView, \
+	InfoBarServiceNotifications, InfoBarPVRState, InfoBarCueSheetSupport, InfoBarBuffer, \
 	InfoBarSummarySupport, InfoBarMoviePlayerSummarySupport, InfoBarTimeshiftState, InfoBarTeletextPlugin, InfoBarExtensions, \
 	InfoBarSubtitleSupport, InfoBarPiP, InfoBarPlugins, InfoBarServiceErrorPopupSupport, InfoBarJobman, InfoBarPowersaver, \
 	InfoBarHDMI, setResumePoint, delResumePoint
@@ -47,14 +47,13 @@ class InfoBar(InfoBarBase, InfoBarShowHide,
 		self["actions"] = HelpableActionMap(self, "InfobarActions",
 			{
 				"showMovies": (self.showMovies, _("Play recorded movies...")),
-				"toogleTvRadio": (self.toogleTvRadio, _("toggels between tv and radio...")),
-				"openTimerList": (self.openTimerList, _("Open Timerlist...")),
-				"showMediaPlayer": (self.showMediaPlayer, _("Show the media player...")),
+				"showRadio": (self.showRadio, _("Show the radio player...")),
+				"showTv": (self.showTv, _("Show the tv player...")),
+				"toggleTvRadio": (self.toggleTvRadio, _("Toggle the tv and the radio player...")),
 			}, prio=2)
 
-		self.allowPiP = True
-
 		self.radioTV = 0
+		self.allowPiP = True
 
 		for x in HelpableScreen, \
 				InfoBarBase, InfoBarShowHide, \
@@ -119,19 +118,17 @@ class InfoBar(InfoBarBase, InfoBarShowHide,
 			from Screens.ChannelSelection import ChannelSelectionRadio
 			self.session.openWithCallback(self.ChannelSelectionRadioClosed, ChannelSelectionRadio, self)
 
-	def toogleTvRadio(self): 
+	def toggleTvRadio(self):
 		if self.radioTV == 1:
 			self.radioTV = 0
-			self.showTv() 
-		else: 
+			self.showTv()
+		else:
 			self.radioTV = 1
-			self.showRadio()  
+			self.showRadio()
 
 	def ChannelSelectionRadioClosed(self, *arg):
 		self.rds_display.show()  # in InfoBarRdsDecoder
 		self.servicelist.correctChannelNumber()
-		self.radioTV = 0
-		self.doShow()
 
 	def showMovies(self, defaultRef=None):
 		self.lastservice = self.session.nav.getCurrentlyPlayingServiceOrGroup()
@@ -151,22 +148,10 @@ class InfoBar(InfoBarBase, InfoBarShowHide,
 	def openMoviePlayer(self, ref):
 		self.session.open(MoviePlayer, ref, slist=self.servicelist, lastservice=self.session.nav.getCurrentlyPlayingServiceOrGroup(), infobar=self)
 
-	def openTimerList(self):
-		from Screens.TimerEdit import TimerEditList
-		self.session.open(TimerEditList)
-
-	def showMediaPlayer(self):
-		try:
-			from Plugins.Extensions.MediaPlayer.plugin import MediaPlayer
-			self.session.open(MediaPlayer)
-			no_plugin = False
-		except Exception, e:
-			self.session.open(MessageBox, _("The MediaPlayer plugin is not installed!\nPlease install it."), type = MessageBox.TYPE_INFO,timeout = 10 )
-
 class MoviePlayer(InfoBarBase, InfoBarShowHide, InfoBarMenu, InfoBarSeek, InfoBarShowMovies, InfoBarInstantRecord,
 		InfoBarAudioSelection, HelpableScreen, InfoBarNotifications, InfoBarServiceNotifications, InfoBarPVRState,
 		InfoBarCueSheetSupport, InfoBarMoviePlayerSummarySupport, InfoBarSubtitleSupport, Screen, InfoBarTeletextPlugin,
-		InfoBarServiceErrorPopupSupport, InfoBarExtensions, InfoBarPlugins, InfoBarPiP, InfoBarHDMI, InfoBarSimpleEventView, InfoBarHotkey):
+		InfoBarServiceErrorPopupSupport, InfoBarExtensions, InfoBarPlugins, InfoBarPiP, InfoBarHDMI, InfoBarHotkey):
 
 	ENABLE_RESUME_SUPPORT = True
 	ALLOW_SUSPEND = True
@@ -221,9 +206,8 @@ class MoviePlayer(InfoBarBase, InfoBarShowHide, InfoBarMenu, InfoBarSeek, InfoBa
 	def standbyCountChanged(self, value):
 		if config.ParentalControl.servicepinactive.value:
 			from Components.ParentalControl import parentalControl
-			if hasattr(self, 'cur_service'):
-				if parentalControl.isProtected(self.cur_service):
-					self.close()
+			if parentalControl.isProtected(self.cur_service):
+				self.close()
 
 	def handleLeave(self, how):
 		self.is_closing = True

@@ -31,6 +31,7 @@ public:
 		UPDATE_CURRENT_SWITCHPARMS, INVALIDATE_CURRENT_SWITCHPARMS,
 		IF_ROTORPOS_VALID_GOTO,
 		IF_TUNER_LOCKED_GOTO,
+		IF_LOCK_TIMEOUT_GOTO,
 		IF_TONE_GOTO, IF_NOT_TONE_GOTO,
 		START_TUNE_TIMEOUT,
 		SET_ROTOR_MOVING,
@@ -246,6 +247,12 @@ class eDVBSatelliteLNBParameters
 		eDVBSatelliteLNBParameters()
 		{
 			SatCR_format = SatCR_format_none;
+#ifndef SWIG
+			m_12V_relais_state = OFF;
+			m_lof_hi = m_lof_lo = m_lof_threshold = 0;
+			m_increased_voltage = false;
+			m_prio = -1;
+#endif
 		}
 #ifdef SWIG
 		~eDVBSatelliteLNBParameters();
@@ -315,12 +322,15 @@ public:
 		DELAY_AFTER_VOLTAGE_CHANGE_BEFORE_SWITCH_CMDS, // delay after change voltage before transmit toneburst/diseqc
 		DELAY_AFTER_DISEQC_RESET_CMD,
 		DELAY_AFTER_DISEQC_PERIPHERIAL_POWERON_CMD,
+		UNICABLE_DELAY_AFTER_ENABLE_VOLTAGE_BEFORE_SWITCH_CMDS,
+		UNICABLE_DELAY_AFTER_VOLTAGE_CHANGE_BEFORE_SWITCH_CMDS,
+		UNICABLE_DELAY_AFTER_LAST_DISEQC_CMD,
 		MAX_PARAMS
 	};
 private:
 #ifndef SWIG
 	static eDVBSatelliteEquipmentControl *instance;
-	eDVBSatelliteLNBParameters m_lnbs[144]; // i think its enough
+	std::vector<eDVBSatelliteLNBParameters> m_lnbs;
 	int m_lnbidx; // current index for set parameters
 	std::map<int, eDVBSatelliteSwitchParameters>::iterator m_curSat;
 	eSmartPtrList<eDVBRegisteredFrontend> &m_avail_frontends, &m_avail_simulate_frontends;
@@ -340,7 +350,7 @@ public:
 	RESULT prepare(iDVBFrontend &frontend, const eDVBFrontendParametersSatellite &sat, int &frequency, int frontend_id, unsigned int tunetimeout);
 	void prepareTurnOffSatCR(iDVBFrontend &frontend);
 	int canTune(const eDVBFrontendParametersSatellite &feparm, iDVBFrontend *, int frontend_id, int *highest_score_lnb=0);
-	bool currentLNBValid() { return m_lnbidx > -1 && m_lnbidx < (int)(sizeof(m_lnbs) / sizeof(eDVBSatelliteLNBParameters)); }
+	bool currentLNBValid() { return m_lnbidx > -1 && static_cast<unsigned int>(m_lnbidx) < m_lnbs.size(); }
 #endif
 	static eDVBSatelliteEquipmentControl *getInstance() { return instance; }
 	static void setParam(int param, int value);

@@ -63,13 +63,13 @@ RESULT eServiceFactoryTS::list(const eServiceReference &, ePtr<iListableService>
 
 RESULT eServiceFactoryTS::info(const eServiceReference &ref, ePtr<iStaticServiceInformation> &ptr)
 {
-	ptr = 0;
+	ptr = nullptr;
 	return -1;
 }
 
 RESULT eServiceFactoryTS::offlineOperations(const eServiceReference &, ePtr<iServiceOfflineOperations> &ptr)
 {
-	ptr = 0;
+	ptr = nullptr;
 	return -1;
 }
 
@@ -110,15 +110,6 @@ eServiceTS::~eServiceTS()
 }
 
 DEFINE_REF(eServiceTS);
-
-static size_t crop(char *buf)
-{
-	size_t len = strlen(buf) - 1;
-	while (len > 0 && (buf[len] == '\r' || buf[len] == '\n')) {
-		buf[len--] = '\0';
-	}
-	return len;
-}
 
 static int getline(char** pbuffer, size_t* pbufsize, int fd)
 {
@@ -181,7 +172,7 @@ int eServiceTS::openHttpConnection(std::string url)
 
 	if (connect(fd, (sockaddr*)&addr, sizeof(addr)) == -1) {
 		std::string msg = "connect failed for: " + url;
-		eDebug(msg.c_str());
+		eDebug("[eServiceTS] %s", msg.c_str());
 		return -1;
 	}
 
@@ -192,7 +183,10 @@ int eServiceTS::openHttpConnection(std::string url)
 	request.append("Connection: close\n");
 	request.append("\n");
 	//eDebug(request.c_str());
-	write(fd, request.c_str(), request.length());
+	if (write(fd, request.c_str(), request.length()) == -1)
+	{
+		eDebug("[eServiceTS] failed to write response %m");
+	}
 
 	int rc;
 	size_t buflen = 1000;
@@ -275,10 +269,8 @@ RESULT eServiceTS::stop()
 		m_destfd = -1;
 	}
 	printf("TS: %s stop\n", m_filename.c_str());
-	if (m_streamthread != NULL)
-		m_streamthread->stop();
-	if (m_decodedemux != NULL)
-		m_decodedemux->flush();
+	m_streamthread->stop();
+	m_decodedemux->flush();
 	m_audioInfo = 0;
 	return 0;
 }
@@ -303,7 +295,7 @@ void eServiceTS::recv_event(int evt)
 		bool wasnull = !m_audioInfo;
 		m_streamthread->getAudioInfo(m_audioInfo);
 		if (m_audioInfo)
-			eDebug("[servicets] %d audiostreams found", m_audioInfo->audioStreams.size());
+			eDebug("[servicets] %zu audiostreams found", m_audioInfo->audioStreams.size());
 		if (m_audioInfo && wasnull) {
 			int sel = getCurrentTrack();
 			if (sel < 0)

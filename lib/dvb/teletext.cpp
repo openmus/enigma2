@@ -144,7 +144,7 @@ unsigned int Cyrillic_1_set[6*16] = {
 	0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037, 0x0037, 0x0039, 0x003a, 0x003b, 0x003c, 0x003d, 0x003e, 0x003f,
 	0xd0a7, 0xd090, 0xd091, 0xd0a6, 0xd094, 0xd095, 0xd0a4, 0xd093, 0xd0a5, 0xd098, 0xd088, 0xd09a, 0xd09b, 0xd09c, 0xd09d, 0xd09e,
 	0xd09f, 0xd08c, 0xd0a0, 0xd0a1, 0xd0a2, 0xd0a3, 0xd092, 0xd083, 0xd089, 0xd08a, 0xd097, 0xd08b, 0xd096, 0xd082, 0xd0a8, 0xd08f,
-	0xd187, 0xd0b0, 0xd0b1, 0xd186, 0xd0b4, 0xd0b5, 0xd0b4, 0xd0b3, 0xd185, 0xd0b8, 0xd198, 0xd0ba, 0xd0bb, 0xd0bc, 0xd0bd, 0xd0be,
+	0xd187, 0xd0b0, 0xd0b1, 0xd186, 0xd0b4, 0xd0b5, 0xd184, 0xd0b3, 0xd185, 0xd0b8, 0xd198, 0xd0ba, 0xd0bb, 0xd0bc, 0xd0bd, 0xd0be,
 	0xd0bf, 0xd19c, 0xd180, 0xd181, 0xd182, 0xd183, 0xd0b2, 0xd193, 0xd199, 0xd19a, 0xd0b7, 0xd19b, 0xd0b6, 0xd192, 0xd188, 0x007f,
 };
 
@@ -153,7 +153,7 @@ unsigned int Cyrillic_2_set[6*16] = {
 	0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037, 0x0037, 0x0039, 0x003a, 0x003b, 0x003c, 0x003d, 0x003e, 0x003f,
 	0xd0ae, 0xd090, 0xd091, 0xd0a6, 0xd094, 0xd095, 0xd0a4, 0xd093, 0xd0a5, 0xd098, 0xd099, 0xd09a, 0xd09b, 0xd09c, 0xd09d, 0xd09e,
 	0xd09f, 0xd0af, 0xd0a0, 0xd0a1, 0xd0a2, 0xd0a3, 0xd096, 0xd092, 0xd0ac, 0xd0aa, 0xd097, 0xd0a8, 0xd0ad, 0xd0a9, 0xd0a7, 0xd0ab,
-	0xd18e, 0xd0b0, 0xd0b1, 0xd186, 0xd0b4, 0xd0b5, 0xd0b4, 0xd0b3, 0xd185, 0xd0b8, 0xd0b9, 0xd0ba, 0xd0bb, 0xd0bc, 0xd0bd, 0xd0be,
+	0xd18e, 0xd0b0, 0xd0b1, 0xd186, 0xd0b4, 0xd0b5, 0xd184, 0xd0b3, 0xd185, 0xd0b8, 0xd0b9, 0xd0ba, 0xd0bb, 0xd0bc, 0xd0bd, 0xd0be,
 	0xd0bf, 0xd18f, 0xd180, 0xd181, 0xd182, 0xd183, 0xd0b6, 0xd0b2, 0xd18c, 0xd18a, 0xd0b7, 0xd188, 0xd18d, 0xd189, 0xd187, 0x007f,
 };
 
@@ -162,7 +162,7 @@ unsigned int Cyrillic_3_set[6*16] = {
 	0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037, 0x0037, 0x0039, 0x003a, 0x003b, 0x003c, 0x003d, 0x003e, 0x003f,
 	0xd0ae, 0xd090, 0xd091, 0xd0a6, 0xd094, 0xd095, 0xd0a4, 0xd093, 0xd0a5, 0xd098, 0xd099, 0xd09a, 0xd09b, 0xd09c, 0xd09d, 0xd09e,
 	0xd09f, 0xd0af, 0xd0a0, 0xd0a1, 0xd0a2, 0xd0a3, 0xd096, 0xd092, 0xd0ac, 0xd0aa, 0xd097, 0xd0a8, 0xd0ad, 0xd0a9, 0xd0a7, 0xd087,
-	0xd18e, 0xd0b0, 0xd0b1, 0xd186, 0xd0b4, 0xd0b5, 0xd0b4, 0xd0b3, 0xd185, 0xd0b8, 0xd0b9, 0xd0ba, 0xd0bb, 0xd0bc, 0xd0bd, 0xd0be,
+	0xd18e, 0xd0b0, 0xd0b1, 0xd186, 0xd0b4, 0xd0b5, 0xd184, 0xd0b3, 0xd185, 0xd0b8, 0xd0b9, 0xd0ba, 0xd0bb, 0xd0bc, 0xd0bd, 0xd0be,
 	0xd0bf, 0xd18f, 0xd180, 0xd181, 0xd182, 0xd183, 0xd0b6, 0xd0b2, 0xd18c, 0xd18a, 0xd0b7, 0xd188, 0xd18d, 0xd189, 0xd187, 0x007f,
 };
 
@@ -219,6 +219,7 @@ static int extractPTS(pts_t &pts, unsigned char *pkt)
 
 eDVBTeletextParser::eDVBTeletextParser(iDVBDemux *demux) : m_pid(-1)
 {
+	eDebug("[eDVBTeletextParser] Starting!");
 	setStreamID(0xBD); /* as per en 300 472 */
 
 	setPageAndMagazine(-1, -1, "und");
@@ -252,9 +253,10 @@ void eDVBTeletextParser::processPESPacket(uint8_t *pkt, int len)
 {
 	unsigned char *p = pkt;
 
-	pts_t pts;
+	pts_t pts = 0;
 	int have_pts = extractPTS(pts, pkt);
 
+	//eDebug("[eDVBTeletextParser] PES packet len=%d", len);
 	p += 4; len -= 4; /* start code, already be verified by pes parser */
 	p += 2; len -= 2; /* length, better use the argument */
 
@@ -266,12 +268,9 @@ void eDVBTeletextParser::processPESPacket(uint8_t *pkt, int len)
 
 	while (len > 2)
 	{
-		unsigned char data_unit_id = *p++; // data_unit_id
+		p++; /* data_unit_id */
 		unsigned char data_unit_length = *p++;
 		len -= 2;
-
-		if(data_unit_id == 0xFF) //data_unit for stuffing
-			break;
 
 		if (len < data_unit_length)
 			break;
@@ -365,7 +364,7 @@ void eDVBTeletextParser::processPESPacket(uint8_t *pkt, int len)
 							continue;
 						}
 						else
-							eDebug("ignore unimplemented: ");
+							eDebugNoNewLineStart("[eDVBTeletextParser] ignore unimplemented mode: ");
 					}
 					else //0..39 means column 0..39
 					{
@@ -403,18 +402,17 @@ void eDVBTeletextParser::processPESPacket(uint8_t *pkt, int len)
 									continue;
 								}
 								else
-									eDebug("ignore G2 char < 0x20: ");
+									eDebugNoNewLineStart("[eDVBTeletextParser] ignore G2 char < 0x20: ");
 							}
 							else
-								eDebug("ignore unimplemented: ");
+								eDebugNoNewLineStart("[eDVBTeletextParser] ignore unimplemented: ");
 						}
 						else
-							eDebug("row is not selected.. ignore: ");
+							eDebugNoNewLineStart("[eDVBTeletextParser] row is not selected.. ignore: ");
 					}
-					eDebug("triplet = %08x(%s) ", val, get_bits(val, 18));
-					eDebug("address = %02x(%s) ", addr, get_bits(addr, 6));
-					eDebug("mode = %02x(%s) ", mode, get_bits(mode, 5));
-					eDebug("data = %02x(%s)", data, get_bits(data, 7));
+					eDebugNoNewLine("triplet = %08x(%s) address = %02x(%s) mode = %02x(%s) data = %02x(%s)\n",
+							val, get_bits(val, 18), addr, get_bits(addr, 6),
+							mode, get_bits(mode, 5), data, get_bits(data, 7));
 				}
 			}
 		}
@@ -428,10 +426,10 @@ void eDVBTeletextParser::processPESPacket(uint8_t *pkt, int len)
 				if ((m_M29_t1 & 0xF) == 0) // format1
 					m_M29_0_valid = 1;
 				else
-					eDebug("non handled packet M/%d/0 format %d", Y, m_M29_t1 & 0xF);
+					eDebug("[eDVBTeletextParser] non handled packet M/%d/0 format %d", Y, m_M29_t1 & 0xF);
 			}
 			else
-				eDebug("non handled packet M/%d/%d", Y, designation_code);
+				eDebug("[eDVBTeletextParser] non handled packet M/%d/%d", Y, designation_code);
 		}
 		else if (m_page_open && M == m_page_M)
 		{
@@ -443,10 +441,10 @@ void eDVBTeletextParser::processPESPacket(uint8_t *pkt, int len)
 				if ((m_X28_t1 & 0xF) == 0) // format1
 					m_X28_0_valid = 1;
 				else
-					eDebug("non handled packet X/%d/0 format %d", Y, m_X28_t1 & 0xF);
+					eDebug("[eDVBTeletextParser] non handled packet X/%d/0 format %d", Y, m_X28_t1 & 0xF);
 			}
 			else
-				eDebug("non handled packet X/%d/%d", Y, designation_code);
+				eDebug("[eDVBTeletextParser] non handled packet X/%d/%d", Y, designation_code);
 		}
 	}
 }
@@ -455,6 +453,7 @@ int eDVBTeletextParser::start(int pid)
 {
 	m_page_open = 0;
 
+	eDebug("[eDVBTeletextParser] starting PES reader on pid=%04x", pid);
 	if (m_pes_reader && pid >= 0 && pid < 0x1fff)
 	{
 		m_pid = pid;
@@ -559,7 +558,7 @@ void eDVBTeletextParser::handleLine(unsigned char *data, int len)
 			else if (b == 0xb)  // open box
 				++m_box_open;
 			else
-				eDebug("[ignore %x]", b);
+				eDebug("[eDVBTeletextParser] handleLine: ignore %x", b);
 				/* ignore other attributes */
 		}
 		else
@@ -634,9 +633,9 @@ void eDVBTeletextParser::setPageAndMagazine(int page, int magazine, const char *
 	}
 
 	if (page > 0)
-		eDebug("enable teletext subtitle page %x%02x (%s)%d", magazine, page, lang, m_L);
+		eDebug("[eDVBTeletextParser] enable teletext subtitle page %x%02x (%s)%d", magazine, page, lang, m_L);
 	else
-		eDebug("disable teletext subtitles page %x%02x (%s)", magazine, page, lang);
+		eDebug("[eDVBTeletextParser] disable teletext subtitles page %x%02x (%s)", magazine, page, lang);
 	m_M29_0_valid = 0;
 	m_X28_0_valid = 0;
 	m_page_M = magazine; /* magazine to look for */

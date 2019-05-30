@@ -11,10 +11,6 @@ class StaticText(Source):
 		self.__text = text
 		self.filter = filter
 
-	# fake Source StaticText function
-	def checkSuspend(self):
-		pass
-
 	def handleCommand(self, cmd):
 		self.text = self.filter(cmd)
 
@@ -26,3 +22,8 @@ class StaticText(Source):
 		self.changed((self.CHANGED_ALL,))
 
 	text = property(getText, setText)
+
+	def getBoolean(self):
+		return bool(self.__text)
+
+	boolean = property(getBoolean)

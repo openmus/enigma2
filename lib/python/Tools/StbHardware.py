@@ -1,7 +1,6 @@
 from os import path
 from fcntl import ioctl
 from struct import pack, unpack
-from boxbranding import getBoxType
 from time import time, localtime, gmtime
 
 def getFPVersion():

@@ -28,7 +28,7 @@ def InitParentalControl():
 	config.ParentalControl.retries.servicepin.time = ConfigInteger(default = 3)
 	config.ParentalControl.servicepin = ConfigSubList()
 	config.ParentalControl.servicepin.append(ConfigPIN(default = 0))
-	config.ParentalControl.age = ConfigSelection(default = "0", choices = [("0", _("No age block"))] + list((str(x), "%d+" % x) for x in range(3,19)))
+	config.ParentalControl.age = ConfigSelection(default = "18", choices = [("0", _("No age block"))] + list((str(x), "%d+" % x) for x in range(3,19)))
 	config.ParentalControl.hideBlacklist = ConfigYesNo(default = False)
 	config.ParentalControl.config_sections = ConfigSubsection()
 	config.ParentalControl.config_sections.main_menu = ConfigYesNo(default = False)
@@ -116,7 +116,7 @@ class ParentalControl:
 		if service not in self.blacklist:
 			self.serviceMethodWrapper(service, self.addServiceToList, self.blacklist)
 			if config.ParentalControl.hideBlacklist.value and not self.sessionPinCached and config.ParentalControl.storeservicepin.value != "never":
-				eDVBDB.getInstance().addFlag(eServiceReference(service), FLAG_IS_PARENTAL_PROTECTED_HIDDEN)
+				self.setHideFlag(service, True)
 
 	def unProtectService(self, service):
 		if service in self.blacklist:
@@ -153,6 +153,7 @@ class ParentalControl:
 	def resetSessionPin(self):
 		self.sessionPinCached = False
 		self.hideBlacklist()
+		refreshServiceList()
 
 	def getCurrentTimeStamp(self):
 		return time.time()
@@ -175,14 +176,14 @@ class ParentalControl:
 		elif result == False:
 			messageText = _("The pin code you entered is wrong.")
 			if self.session:
-				self.session.open(MessageBox, messageText, MessageBox.TYPE_INFO, timeout=7)
+				self.session.open(MessageBox, messageText, MessageBox.TYPE_INFO, timeout=3)
 			else:
-				AddPopup(messageText, MessageBox.TYPE_ERROR, timeout =7)
+				AddPopup(messageText, MessageBox.TYPE_ERROR, timeout = 3)
 
 	def saveListToFile(self, sWhichList, vList):
 		file = open(resolveFilename(SCOPE_CONFIG, sWhichList), 'w')
 		for sService,sType in vList.iteritems():
-			if TYPE_SERVICE in sType or TYPE_BOUQUET in sType:
+			if (TYPE_SERVICE in sType or TYPE_BOUQUET in sType) and not sService.startswith("-"):
 				file.write(str(sService) + "\n")
 		file.close()
 
@@ -229,6 +230,7 @@ class ParentalControl:
 		if not self.filesOpened:
 			config.misc.standbyCounter.addNotifier(self.standbyCounterCallback, initial_call=False)
 			self.filesOpened = True
+		refreshServiceList()
 
 	def __getattr__(self, name):
 		if name in ('blacklist', 'whitelist'):
@@ -239,12 +241,26 @@ class ParentalControl:
 
 	def hideBlacklist(self):
 		if self.blacklist:
-			if config.ParentalControl.servicepinactive.value and config.ParentalControl.storeservicepin.value != "never" and config.ParentalControl.hideBlacklist.value and not self.sessionPinCached:
-				for ref in self.blacklist:
-					if TYPE_BOUQUET not in ref:
-						eDVBDB.getInstance().addFlag(eServiceReference(ref), FLAG_IS_PARENTAL_PROTECTED_HIDDEN)
+			flag = config.ParentalControl.servicepinactive.value and config.ParentalControl.storeservicepin.value != "never" and config.ParentalControl.hideBlacklist.value and not self.sessionPinCached
+			for ref in self.blacklist:
+				self.setHideFlag(ref, flag)
+
+	def setHideFlag(self, ref, flag):
+		if TYPE_BOUQUET in ref:
+			ref = ref.split(":")
+			ref[1], ref[9] = '519', '1'
+			ref_remove = eServiceReference(":".join(ref))
+			ref[1], ref[9] = '7', '0'
+			ref_add = eServiceReference(":".join(ref))
+			if flag:
+				ref_remove, ref_add = ref_add, ref_remove
+			list = eServiceCenter.getInstance().list(eServiceReference('1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "bouquets.%s" ORDER BY bouquet' % ('tv' if ref[2] == '1' else 'radio')))
+			if list:
+				mutableList = list.startEdit()
+				if not mutableList.addService(ref_add, ref_remove):
+					mutableList.removeService(ref_remove, False)
+		else:
+			if flag:
+				eDVBDB.getInstance().addFlag(eServiceReference(ref), FLAG_IS_PARENTAL_PROTECTED_HIDDEN)
 			else:
-				for ref in self.blacklist:
-					if TYPE_BOUQUET not in ref:
-						eDVBDB.getInstance().removeFlag(eServiceReference(ref), FLAG_IS_PARENTAL_PROTECTED_HIDDEN)
-			refreshServiceList()
+				eDVBDB.getInstance().removeFlag(eServiceReference(ref), FLAG_IS_PARENTAL_PROTECTED_HIDDEN)

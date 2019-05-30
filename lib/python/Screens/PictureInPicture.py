@@ -37,12 +37,10 @@ def PipPigMode(value):
 					open(SystemInfo["hasPIPVisibleProc"], "w").write("0")
 				else:
 					import skin
-					x, y, w, h = skin.parameters.get("PipHidePosition",(0, 0, 8, 8))
+					x, y, w, h = skin.parameters.get("PipHidePosition",(16, 16, 16, 16))
 					pip = InfoBar.instance.session.pip
-					pip.instance.move(ePoint(x, y))
-					pip["video"].instance.move(ePoint(x, y))
-					pip.instance.resize(eSize(*(w, h)))
-					pip["video"].instance.resize(eSize(*(w, h)))
+					pip.move(x, y, doSave=False)
+					pip.resize(w, h, doSave=False)
 				PipPigModeEnabled = True
 		else:
 			PipPigModeTimer.start(100, True)
@@ -81,7 +79,6 @@ class PictureInPicture(Screen):
 	def __del__(self):
 		del self.pipservice
 		self.setExternalPiP(False)
-		# self.setSizePosMainWindow(0, 0, 0, 0)
 		self.setSizePosMainWindow()
 		if hasattr(self, "dishpipActive") and self.dishpipActive is not None:
 			self.dishpipActive.setHide()
@@ -99,16 +96,11 @@ class PictureInPicture(Screen):
 		self.relocate()
 		self.setExternalPiP(config.av.pip_mode.value == "external")
 
-	def move(self, x, y):
-		if config.av.pip_mode.value == 2:
-			self.instance.move(ePoint(370, 152))
-			return
-		w = config.av.pip.value[2]
-		if config.av.pip_mode.value == 1:
-			x = 720 - w
-			y = 0
-		config.av.pip.value[0] = x
-		config.av.pip.value[1] = y
+	def move(self, x, y, doSave=True):
+		if doSave:
+			config.av.pip.value[0] = x
+			config.av.pip.value[1] = y
+			config.av.pip.save()
 		w = config.av.pip.value[2]
 		h = config.av.pip.value[3]
 		if config.av.pip_mode.value == "cascade":
@@ -123,19 +115,13 @@ class PictureInPicture(Screen):
 		elif config.av.pip_mode.value in "bigpig external":
 			x = 0
 			y = 0
-		config.av.pip.save()
 		self.instance.move(ePoint(x, y))
-		# self["video"].instance.move(ePoint(x, y))
 
-	def resize(self, w, h):
-		if config.av.pip_mode.value == 2:
-			self.instance.resize(eSize(*(340, 264)))
-			self["video"].instance.resize(eSize(*(340, 264)))
-			self.setSizePosMainWindow(0, 142, 360, 284)
-			return
-		config.av.pip.value[2] = w
-		config.av.pip.value[3] = h
-		config.av.pip.save()
+	def resize(self, w, h, doSave=True):
+		if doSave:
+			config.av.pip.value[2] = w
+			config.av.pip.value[3] = h
+			config.av.pip.save()
 		if config.av.pip_mode.value == "standard":
 			self.instance.resize(eSize(*(w, h)))
 			self["video"].instance.resize(eSize(*(w, h)))
@@ -193,11 +179,12 @@ class PictureInPicture(Screen):
 		return self.choicelist[config.av.pip_mode.index][1]
 
 	def playService(self, service):
+		Notifications.RemovePopup("ZapPipError")
 		if service is None:
 			return False
 		ref = self.resolveAlternatePipService(service)
 		if ref:
-			if SystemInfo["CanDoTranscodeAndPIP"] and StreamServiceList:
+			if SystemInfo["CanNotDoSimultaneousTranscodeAndPIP"] and StreamServiceList:
 				self.pipservice = None
 				self.currentService = None
 				self.currentServiceReference = None

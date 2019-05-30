@@ -455,7 +455,7 @@ void eWidgetDesktop::createBufferForWidget(eWidget *widget, int layer)
 
 	m_screen.m_dc->getPixmap(pm_screen);
 
-	memcpy(pm->surface->clut.data, pm_screen->surface->clut.data, 256 * sizeof(gRGB));
+	memcpy(static_cast<void*>(pm->surface->clut.data), pm_screen->surface->clut.data, 256 * sizeof(gRGB));
 
 	comp->m_dc = new gDC(pm);
 }
@@ -535,23 +535,3 @@ eRect eWidgetDesktop::bounds() const
 			size.height() - m_margins.top() - m_margins.bottom() // height
 		);
 }
-
-#ifdef HAVE_OSDANIMATION
-void eWidgetDesktop::sendShow(ePoint point, eSize size) {
-	if(m_style_id!=0)
-		return;
-
-	gPainter painter(m_screen.m_dc);
-	painter.sendShow(point, size);
-}
-
-void eWidgetDesktop::sendHide(ePoint point, eSize size)
-{
-	if(m_style_id!=0)
-		return;
-
-	gPainter painter(m_screen.m_dc);
-	painter.sendHide(point, size);
-}
-
-#endif

@@ -48,6 +48,7 @@ is usually caused by not marking PSignals as immutable.
 #include <lib/service/iservice.h>
 #include <lib/service/service.h>
 #include <lib/service/servicedvb.h>
+#include <lib/service/servicepeer.h>
 #include <lib/gdi/fb.h>
 #include <lib/gdi/font.h>
 #include <lib/gdi/gpixmap.h>
@@ -68,6 +69,7 @@ is usually caused by not marking PSignals as immutable.
 #include <lib/gui/ewidgetanimation.h>
 #include <lib/gui/eslider.h>
 #include <lib/gui/epositiongauge.h>
+#include <lib/gui/egauge.h>
 #include <lib/gui/evideo.h>
 #include <lib/gui/ecanvas.h>
 #include <lib/python/connections.h>
@@ -120,7 +122,7 @@ is usually caused by not marking PSignals as immutable.
 %define %typemap_output_simple(Type)
  %typemap(in,numinputs=0) Type *OUTPUT ($*1_ltype temp),
               Type &OUTPUT ($*1_ltype temp)
-   "$1 = new Type;";
+   "$1 = new Type; (void)temp;";
  %fragment("t_out_helper"{Type},"header",
      fragment="t_output_helper") {}
  %typemap(argout,fragment="t_out_helper"{Type}) Type *OUTPUT, Type &OUTPUT
@@ -130,7 +132,7 @@ is usually caused by not marking PSignals as immutable.
 %define %typemap_output_ptr(Type)
  %typemap(in,numinputs=0) Type *OUTPUT ($*1_ltype temp),
               Type &OUTPUT ($*1_ltype temp)
-   "$1 = new Type;";
+   "$1 = new Type; (void)temp;";
  %fragment("t_out_helper"{Type},"header",
      fragment="t_output_helper") {}
  %typemap(argout,fragment="t_out_helper"{Type}) Type *OUTPUT, Type &OUTPUT
@@ -138,10 +140,12 @@ is usually caused by not marking PSignals as immutable.
    "$result = t_output_helper($result, ((*$1) ? SWIG_NewPointerObj((void*)($1), $1_descriptor, 1) : (delete $1, Py_INCREF(Py_None), Py_None)));"
 %enddef
 
+
+#define DEBUG
 typedef long time_t;
-%include <enigma2_config.h>
 %include "typemaps.i"
 %include "std_string.i"
+%include "stdint.i"
 %include <lib/python/swig.h>
 %include <lib/base/object.h>
 %include <lib/base/eenv.h>
@@ -159,6 +163,7 @@ typedef long time_t;
 %include <lib/service/iservice.h>
 %include <lib/service/service.h>
 %include <lib/base/e2avahi.h>
+%include <lib/service/servicepeer.h>
 
 // TODO: embed these...
 %immutable ePicLoad::PictureData;
@@ -195,7 +200,6 @@ typedef long time_t;
 %include <lib/gdi/fb.h>
 %include <lib/gdi/font.h>
 %include <lib/gdi/gpixmap.h>
-%include <lib/gdi/gfbdc.h>
 %include <lib/gdi/gmaindc.h>
 %include <lib/gdi/epoint.h>
 %include <lib/gdi/erect.h>
@@ -211,6 +215,7 @@ typedef long time_t;
 %include <lib/gui/ewindow.h>
 %include <lib/gui/eslider.h>
 %include <lib/gui/epositiongauge.h>
+%include <lib/gui/egauge.h>
 %include <lib/gui/ewidgetdesktop.h>
 %include <lib/gui/elistbox.h>
 %include <lib/gui/elistboxcontent.h>
@@ -428,9 +433,10 @@ extern eApplication *getApplication();
 extern int getPrevAsciiCode();
 extern void addFont(const char *filename, const char *alias, int scale_factor, int is_replacement, int renderflags = 0);
 extern const char *getEnigmaVersionString();
-extern const char *getGStreamerVersionString();
+extern const char *getBoxType();
 extern void dump_malloc_stats(void);
-
+extern void pauseInit(void);
+extern void resumeInit(void);
 %}
 
 extern void addFont(const char *filename, const char *alias, int scale_factor, int is_replacement, int renderflags = 0);
@@ -439,8 +445,10 @@ extern void runMainloop();
 extern void quitMainloop(int exit_code);
 extern eApplication *getApplication();
 extern const char *getEnigmaVersionString();
-extern const char *getGStreamerVersionString();
+extern const char *getBoxType();
 extern void dump_malloc_stats(void);
+extern void pauseInit(void);
+extern void resumeInit(void);
 
 %include <lib/python/python_console.i>
 %include <lib/python/python_base.i>

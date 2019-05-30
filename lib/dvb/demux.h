@@ -24,7 +24,7 @@ public:
 
 	RESULT createSectionReader(eMainloop *context, ePtr<iDVBSectionReader> &reader);
 	RESULT createPESReader(eMainloop *context, ePtr<iDVBPESReader> &reader);
-	RESULT createTSRecorder(ePtr<iDVBTSRecorder> &recorder, unsigned int packetsize = 188, bool streaming=false);
+	RESULT createTSRecorder(ePtr<iDVBTSRecorder> &recorder, int packetsize = 188, bool streaming=false);
 	RESULT getMPEGDecoder(ePtr<iTSMPEGDecoder> &reader, int index);
 	RESULT getSTC(pts_t &pts, int num);
 	RESULT getCADemuxID(uint8_t &id) { id = demux; return 0; }
@@ -39,6 +39,7 @@ private:
 
 	int m_dvr_busy;
 	int m_dvr_id;
+	int m_dvr_source_offset;
 	friend class eDVBSectionReader;
 	friend class eDVBPESReader;
 	friend class eDVBAudio;
@@ -48,12 +49,7 @@ private:
 	friend class eDVBTSRecorder;
 	friend class eDVBCAService;
 	friend class eTSMPEGDecoder;
-#ifdef HAVE_AMLOGIC
-	int m_pvr_fd;
-	friend class eAMLTSMPEGDecoder;
-#endif
 	sigc::signal1<void, int> m_event;
-
 	int openDemux(void);
 };
 

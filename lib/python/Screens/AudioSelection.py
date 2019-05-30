@@ -102,7 +102,7 @@ class AudioSelection(Screen, ConfigListScreen):
 					choicelist = [("0",_("left")), ("1",_("stereo")), ("2", _("right"))]
 					self.settings.channelmode = ConfigSelection(choices = choicelist, default = str(self.audioChannel.getCurrentChannel()))
 					self.settings.channelmode.addNotifier(self.changeMode, initial_call = False)
-					conflist.append(getConfigListEntry(_("Audio channel"), self.settings.channelmode))
+					conflist.append(getConfigListEntry(_("Channel"), self.settings.channelmode))
 					self["key_green"].setBoolean(True)
 				else:
 					conflist.append(('',))
@@ -283,7 +283,7 @@ class AudioSelection(Screen, ConfigListScreen):
 
 	def keyRight(self, config = False):
 		if config or self.focus == FOCUS_CONFIG:
-			if self["config"].getCurrentIndex() < 3 or self["config"].getCurrentIndex() >= 4:
+			if self["config"].getCurrentIndex() < 3:
 				ConfigListScreen.keyRight(self)
 			elif self["config"].getCurrentIndex() == 3:
 				if self.settings.menupage.getValue() == PAGE_AUDIO and hasattr(self, "plugincallfunc"):
@@ -454,7 +454,7 @@ class QuickSubtitlesConfigMenu(ConfigListScreen, Screen):
 				getConfigMenuItem("config.subtitles.subtitle_bad_timing_delay"),
 				getConfigMenuItem("config.subtitles.subtitle_noPTSrecordingdelay"),
 			]
-		else: # pango
+		else: 		# pango
 			menu = [
 				getConfigMenuItem("config.subtitles.pango_subtitles_delay"),
 				getConfigMenuItem("config.subtitles.pango_subtitle_colors"),
@@ -464,7 +464,6 @@ class QuickSubtitlesConfigMenu(ConfigListScreen, Screen):
 				getConfigMenuItem("config.subtitles.subtitle_position"),
 				getConfigMenuItem("config.subtitles.subtitle_alignment"),
 				getConfigMenuItem("config.subtitles.subtitle_rewrap"),
-				getConfigMenuItem("config.subtitles.pango_subtitle_removehi"),
 				getConfigMenuItem("config.subtitles.subtitle_borderwidth"),
 				getConfigMenuItem("config.subtitles.showbackground"),
 				getConfigMenuItem("config.subtitles.pango_subtitles_fps"),

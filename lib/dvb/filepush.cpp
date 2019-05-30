@@ -20,7 +20,7 @@ eFilePushThread::eFilePushThread(int blocksize, size_t buffersize):
 	 m_run_state(0)
 {
 	if (m_buffer == NULL)
-		eFatal("[eFilePushThread] Failed to allocate %d bytes", buffersize);
+		eFatal("[eFilePushThread] Failed to allocate %zu bytes", buffersize);
 	CONNECT(m_messagepump.recv_msg, eFilePushThread::recvEvent);
 }
 
@@ -57,12 +57,13 @@ void eFilePushThread::thread()
 	size_t bytes_read = 0;
 	off_t current_span_offset = 0;
 	size_t current_span_remaining = 0;
+	m_sof = 0;
 
 	while (!m_stop)
 	{
 		if (m_sg && !current_span_remaining)
 		{
-			m_sg->getNextSourceSpan(m_current_position, bytes_read, current_span_offset, current_span_remaining, m_blocksize);
+			m_sg->getNextSourceSpan(m_current_position, bytes_read, current_span_offset, current_span_remaining, m_blocksize, m_sof);
 			ASSERT(!(current_span_remaining % m_blocksize));
 			m_current_position = current_span_offset;
 			bytes_read = 0;
@@ -77,7 +78,7 @@ void eFilePushThread::thread()
 			/* align to blocksize */
 		maxread -= maxread % m_blocksize;
 
-		if (maxread)
+		if (maxread && !m_sof)
 		{
 #ifdef SHOW_WRITE_TIME
 			struct timeval starttime;
@@ -109,9 +110,6 @@ void eFilePushThread::thread()
 				continue;
 			}
 			eDebug("[eFilePushThread] read error: %m");
-			sleep(1);
-			sendEvent(evtReadError);
-			break;
 		}
 
 			/* a read might be mis-aligned in case of a short read. */
@@ -119,7 +117,7 @@ void eFilePushThread::thread()
 		if (d)
 			buf_end -= d;
 
-		if (buf_end == 0)
+		if (buf_end == 0 || m_sof == 1)
 		{
 				/* on EOF, try COMMITting once. */
 			if (m_send_pvr_commit)
@@ -151,9 +149,12 @@ void eFilePushThread::thread()
 				   over and over until somebody responds.
 
 				   in stream_mode, think of evtEOF as "buffer underrun occurred". */
-			sendEvent(evtEOF);
+			if (m_sof == 0)
+				sendEvent(evtEOF);
+			else
+				sendEvent(evtUser); // start of file event
 
-			if (m_stream_mode && ++eofcount < 5)
+			if (m_stream_mode)
 			{
 				eDebug("[eFilePushThread] reached EOF, but we are in stream mode. delaying 1 second.");
 				sleep(1);
@@ -165,7 +166,6 @@ void eFilePushThread::thread()
 				sleep(1);
 				continue;
 			}
-			sendEvent(evtReadError);
 			break;
 		} else
 		{
@@ -178,14 +178,6 @@ void eFilePushThread::thread()
 
 				if (w <= 0)
 				{
-					/* HACK: we can't control it (for now) inside the drivers
-					   because we need it only for streaming (not for recordings)
-					   so we let flush the decoder to enigma2 */
-					if (w < 0 && m_stream_mode) {
-						eDebug("[eFilePushThread] error writing on demuxer. Flush the decoder!");
-						sendEvent(evtFlush);
-					}
-
 					/* Check m_stop after interrupted syscall. */
 					if (m_stop) {
 						w = 0;
@@ -337,7 +329,6 @@ void eFilePushThreadRecorder::thread()
 
 	/* we set the signal to not restart syscalls, so we can detect our signal. */
 	struct sigaction act;
-	memset(&act, 0, sizeof(act));
 	act.sa_handler = signal_handler; // no, SIG_IGN doesn't do it. we want to receive the -EINTR
 	act.sa_flags = 0;
 	sigaction(SIGUSR1, &act, 0);

@@ -161,6 +161,7 @@ public:
 		: type(type), flags(flags), path(path)
 	{
 		memset(data, 0, sizeof(data));
+		number = 0;
 	}
 	eServiceReference(const std::string &string);
 	std::string toString() const;
@@ -389,8 +390,9 @@ public:
 		sLiveStreamDemuxId,
 		sBuffer,
 		sIsDedicated3D,
-		sHideVBI,
 		sCenterDVBSubs,
+
+		sGamma,
 
 		sUser = 0x100
 	};
@@ -427,7 +429,6 @@ public:
 	virtual ePtr<iServiceInfoContainer> getInfoObject(int w);
 	virtual ePtr<iDVBTransponderData> getTransponderData();
 	virtual void getAITApplications(std::map<int, std::string> &aitlist) {};
-	virtual PyObject *getHbbTVApplications() {};
 	virtual void getCaIds(std::vector<int> &caids, std::vector<int> &ecmpids, std::vector<std::string> &ecmdatabytes);
 	virtual long long getFileSize();
 
@@ -681,12 +682,12 @@ SWIG_TEMPLATE_TYPEDEF(ePtr<iCueSheet>, iCueSheetPtr);
 
 class PyList;
 
-class eDVBTeletextSubtitlePage;
-class eDVBSubtitlePage;
+struct eDVBTeletextSubtitlePage;
+struct eDVBSubtitlePage;
 struct ePangoSubtitlePage;
 class eRect;
-struct gRegion;
-struct gPixmap;
+class gRegion;
+class gPixmap;
 
 SWIG_IGNORE(iSubtitleUser);
 class iSubtitleUser
@@ -818,6 +819,7 @@ public:
 	virtual SWIG_VOID(RESULT) getAdapterId(int &result) const = 0;
 	virtual SWIG_VOID(RESULT) getDemuxId(int &result) const = 0;
 	virtual SWIG_VOID(RESULT) getCaIds(std::vector<int> &caids, std::vector<int> &ecmpids, std::vector<std::string> &ecmdatabytes) const = 0;
+	virtual SWIG_VOID(RESULT) getDefaultAudioPid(int &result) const = 0;
 };
 
 class iStreamableService: public iObject
@@ -930,6 +932,8 @@ public:
 		evStopped,
 
 		evHBBTVInfo,
+
+		evVideoGammaChanged,
 
 		evUser = 0x100
 	};

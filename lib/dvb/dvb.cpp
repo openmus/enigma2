@@ -2,10 +2,9 @@
 #include <linux/dvb/dmx.h>
 #include <linux/dvb/version.h>
 
-#include <lib/base/cfile.h>
 #include <lib/base/eerror.h>
+#include <lib/base/estring.h>
 #include <lib/base/wrappers.h>
-#include <lib/base/httpstream.h>
 #include <lib/dvb/cahandler.h>
 #include <lib/dvb/idvb.h>
 #include <lib/dvb/dvb.h>
@@ -250,8 +249,8 @@ bool eDVBAdapterLinux::isusb(int nr)
 	{
 		return true;
 	}
-	snprintf(devicename, sizeof(devicename), "/sys/class/dvb/dvb%d.frontend0/device/ep_84", nr);
-	return ::access(devicename, X_OK) >= 0;
+	snprintf(devicename, sizeof(devicename), "/sys/class/dvb/dvb%d.frontend0/device/subsystem", nr);
+	return readLink(devicename).find("/usb") != std::string::npos;
 }
 
 DEFINE_REF(eDVBUsbAdapter);
@@ -427,7 +426,11 @@ eDVBUsbAdapter::eDVBUsbAdapter(int nr)
 	memset(pidList, 0xff, sizeof(pidList));
 
 	mappedFrontendName[virtualFrontendName] = usbFrontendName;
-	pipe(pipeFd);
+	if (pipe(pipeFd) == -1)
+	{
+		eWarning("[eDVBUsbAdapter] failed to create pipe (%m)");
+		goto error;
+	}
 	running = true;
 	pthread_create(&pumpThread, NULL, threadproc, (void*)this);
 	return;
@@ -787,24 +790,29 @@ std::string eDVBResourceManager::getFrontendCapabilities(int index)
 	return "";
 }
 
-void eDVBResourceManager::setFrontendType(int index, const char *type)
+void eDVBResourceManager::setFrontendType(int index, const char *types)
 {
 	for (eSmartPtrList<eDVBRegisteredFrontend>::iterator i(m_frontend.begin()); i != m_frontend.end(); ++i)
 	{
-		if (i->m_frontend->getSlotID() == index)
+		if (i->m_frontend->getSlotID() != index)
 		{
-			std::vector<fe_delivery_system_t> whitelist;
-			if (!strcmp(type, "DVB-S2") || !strcmp(type, "DVB-S"))
+			continue;
+		}
+
+		std::vector<fe_delivery_system_t> whitelist;
+		for (const auto& type : split(types, ","))
+		{
+			if (type == "DVB-S2" || type == "DVB-S")
 			{
 				whitelist.push_back(SYS_DVBS);
 				whitelist.push_back(SYS_DVBS2);
 			}
-			else if (!strcmp(type, "DVB-T2") || !strcmp(type, "DVB-T"))
+			else if (type == "DVB-T2" || type == "DVB-T")
 			{
 				whitelist.push_back(SYS_DVBT);
 				whitelist.push_back(SYS_DVBT2);
 			}
-			else if (!strcmp(type, "DVB-C"))
+			else if (type == "DVB-C")
 			{
 #if defined SYS_DVBC_ANNEX_A
 				whitelist.push_back(SYS_DVBC_ANNEX_A);
@@ -813,14 +821,18 @@ void eDVBResourceManager::setFrontendType(int index, const char *type)
 				whitelist.push_back(SYS_DVBC_ANNEX_AC);
 #endif
 			}
-			else if (!strcmp(type, "ATSC"))
+			else if (type == "ATSC")
 			{
 				whitelist.push_back(SYS_ATSC);
 				whitelist.push_back(SYS_DVBC_ANNEX_B);
 			}
-			i->m_frontend->setDeliverySystemWhitelist(whitelist);
-			break;
+			else if (type == "UNDEFINED")
+			{
+				whitelist.push_back(SYS_UNDEFINED);
+			}
 		}
+		i->m_frontend->setDeliverySystemWhitelist(whitelist);
+		break;
 	}
 }
 
@@ -838,6 +850,7 @@ RESULT eDVBResourceManager::allocateFrontend(ePtr<eDVBAllocatedFrontend> &fe, eP
 	foundone = 0;
 	check_fbc_leaf_linkable = false;
 	current_fbc_setid = -1;
+	c = 0;
 
 	for (eSmartPtrList<eDVBRegisteredFrontend>::iterator i(frontends.begin()); i != frontends.end(); ++i)
 	{
@@ -961,35 +974,6 @@ RESULT eDVBResourceManager::allocateDemux(eDVBRegisteredFrontend *fe, ePtr<eDVBA
 	ePtr<eDVBRegisteredDemux> unused;
 	uint8_t d, a;
 
-#ifdef HAVE_AMLOGIC
-	// find first unused demux which is on same adapter as frontend
-	while (i != m_demux.end())
-	{
-		i->m_demux->getCADemuxID(d);
-		if (fe) {
-			if (!i->m_inuse && d == fesource) {
-				unused = i;
-				break;
-			}
-			else if (i->m_adapter == adapter && i->m_demux->getSource() == fesource) {
-				// demux is in use, but can be shared
-				demux = new eDVBAllocatedDemux(i);
-				i->m_demux->getCAAdapterID(a);
-				eDebug("[eDVBResourceManager] allocating shared demux adapter=%d, demux=%d, source=%d fesource=%d", a, d, i->m_demux->getSource(), fesource);
-				return 0;
-			}
-		}
-		else if (d == (m_demux.size() - 1)) { // always use last demux for PVR
-			if (i->m_inuse) {
-				demux = new eDVBAllocatedDemux(i);
-				return 0;
-			}
-			unused = i;
-			break;
-		}
-		i++;
-	}
-#else
 	/*
 	 * For pvr playback, start with the last demux.
 	 * On some hardware, there are less ca devices than demuxes, so try to leave
@@ -1037,7 +1021,6 @@ RESULT eDVBResourceManager::allocateDemux(eDVBRegisteredFrontend *fe, ePtr<eDVBA
 			--i;
 		}
 	}
-#endif
 
 	if (unused)
 	{
@@ -1086,14 +1069,12 @@ RESULT eDVBResourceManager::allocateChannel(const eDVBChannelID &channelid, eUse
 	if (!simulate && m_cached_channel)
 	{
 		eDVBChannel *cache_chan = (eDVBChannel*)&(*m_cached_channel);
-#ifndef HAVE_AMLOGIC
 		if(channelid==cache_chan->getChannelID())
 		{
 			eDebug("[eDVBResourceManager] use cached_channel");
 			channel = m_cached_channel;
 			return 0;
 		}
-#endif
 		m_cached_channel_state_changed_conn.disconnect();
 		m_cached_channel=0;
 		m_releaseCachedChannelTimer->stop();
@@ -1615,24 +1596,6 @@ void eDVBChannel::pvrEvent(int event)
 		eDebug("[eDVBChannel] End of file!");
 		m_event(this, evtEOF);
 		break;
-	case eFilePushThread::evtReadError:
-		eDebug("eDVBChannel: Read error!");
-		if (m_source->isStream()) {
-			eDebug("eDVBChannel: We are in stream mode, trying to reconnect it!");
-			ePtr<iTsSource> source = m_source;
-			stop();
-			source->reconnect();
-			playSource(source, m_streaminfo_file.c_str());
-		}
-		else {
-			stop();
-		}
-		break;
-	case eFilePushThread::evtFlush:
-		eDebug("eDVBChannel: pvrEvent evtFlush");
-		if (m_decoder_demux)
-			m_decoder_demux->get().flush();
-		break;
 	case eFilePushThread::evtUser: /* start */
 		eDebug("[eDVBChannel] SOF");
 		m_event(this, evtSOF);
@@ -1715,7 +1678,7 @@ void eDVBChannel::cueSheetEvent(int event)
 				eDebug("[eDVBChannel] span translation failed.\n");
 				continue;
 			}
-			eDebug("[eDVBChannel] source span: %llu .. %llu, translated to %llu..%llu", pts_in, pts_out, offset_in, offset_out);
+			eDebug("[eDVBChannel] source span: %lld .. %lld, translated to %jd..%jd", pts_in, pts_out, (intmax_t)offset_in, (intmax_t)offset_out);
 			m_source_span.push_back(std::pair<off_t, off_t>(offset_in, offset_out));
 		}
 		break;
@@ -1745,7 +1708,7 @@ static size_t diff_upto(off_t high, off_t low, size_t max)
 }
 
 	/* remember, this gets called from another thread. */
-void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off_t &start, size_t &size, int blocksize)
+void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off_t &start, size_t &size, int blocksize, int &sof)
 {
 	unsigned int max = align(1024*1024*1024, blocksize);
 	current_offset = align(current_offset, blocksize);
@@ -1796,7 +1759,7 @@ void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off
 
 		if (m_skipmode_m)
 		{
-			eDebug("[eDVBChannel] we are at %llu, and we try to find the iframe here:", current_offset);
+			eDebug("[eDVBChannel] we are at %jd, and we try to find the iframe here:", (intmax_t)current_offset);
 			size_t iframe_len;
 			off_t iframe_start = current_offset;
 
@@ -1841,7 +1804,7 @@ void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off
 			}
 			if (!m_cue->m_decoding_demux)
 			{
-				eDebug("[eDVBChannel] getNextSourceSpan, no decoding demux. couldn't seek to %llu... ignore request!", pts);
+				eDebug("[eDVBChannel] getNextSourceSpan, no decoding demux. couldn't seek to %lld... ignore request!", pts);
 				start = current_offset;
 				size = max;
 				continue;
@@ -1888,7 +1851,7 @@ void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off
 			} else
 			{
 				pts = nextap;
-				eDebug("[eDVBChannel] next ap is %llu\n", pts);
+				eDebug("[eDVBChannel] next ap is %lld\n", pts);
 			}
 		}
 
@@ -1898,11 +1861,11 @@ void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off
 		m_tstools_lock.unlock();
 		if (r)
 		{
-			eDebug("[eDVBChannel] get offset for pts=%llu failed!", pts);
+			eDebug("[eDVBChannel] get offset for pts=%lld failed!", pts);
 			continue;
 		}
 
-		eDebug("[eDVBChannel] ok, resolved skip (rel: %d, diff %lld), now at %08llx", relative, pts, offset);
+		eDebug("[eDVBChannel] ok, resolved skip (rel: %d, diff %lld), now at %16jx", relative, pts, (intmax_t)offset);
 		current_offset = align(offset, blocksize); /* in case tstools return non-aligned offset */
 	}
 
@@ -1933,29 +1896,29 @@ void eDVBChannel::getNextSourceSpan(off_t current_offset, size_t bytes_read, off
 				{
 					eDebug("[eDVBChannel] reached SOF");
 					m_skipmode_m = 0;
-					m_pvr_thread->sendEvent(eFilePushThread::evtUser);
+					sof = 1;
 				}
 			} else
 			{
 					/* when skipping reverse, however, choose the zone before. */
 					/* This returns a size 0 block, in case you noticed... */
 				--i;
-				eDebug("[eDVBChannel] skip to previous block, which is %llu..%llu", i->first, i->second);
+				eDebug("[eDVBChannel] skip to previous block, which is %ju..%ju", i->first, i->second);
 				size_t len = diff_upto(i->second, i->first, max);
 				start = i->second - len;
-				eDebug("[eDVBChannel] skipping to %llu, %zd", start, len);
+				eDebug("[eDVBChannel] skipping to %jd, %zd", (intmax_t)start, len);
 			}
 
-			eDebug("[eDVBChannel] result: %llu, %zx (%llu %llu)", start, size, i->first, i->second);
+			eDebug("[eDVBChannel] result: %jd, %zx (%ju %ju)", (intmax_t)start, size, i->first, i->second);
 			return;
 		}
 	}
 
-	if ((current_offset < -m_skipmode_m) && (m_skipmode_m < 0))
+	if ((current_offset < 0) && (m_skipmode_m < 0))
 	{
 		eDebug("[eDVBChannel] reached SOF");
 		m_skipmode_m = 0;
-		m_pvr_thread->sendEvent(eFilePushThread::evtUser);
+		sof = 1;
 	}
 
 	start = current_offset;
@@ -2183,7 +2146,6 @@ RESULT eDVBChannel::playSource(ePtr<iTsSource> &source, const char *streaminfo_f
 	}
 
 	m_source = source;
-	m_streaminfo_file = std::string(streaminfo_file);
 	m_tstools.setSource(m_source, streaminfo_file);
 
 	if (m_pvr_fd_dst < 0)

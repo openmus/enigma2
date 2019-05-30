@@ -3,13 +3,13 @@ from SystemInfo import SystemInfo
 from fcntl import ioctl
 import os
 import struct
-from boxbranding import getBoxType
+import platform
 
-# asm-generic/ioctl.h
+# include/uapi/asm-generic/ioctl.h
 IOC_NRBITS = 8L
 IOC_TYPEBITS = 8L
-IOC_SIZEBITS = 13L
-IOC_DIRBITS = 3L
+IOC_SIZEBITS = 13L if "mips" in platform.machine() else 14L
+IOC_DIRBITS = 3L if "mips" in platform.machine() else 2L
 
 IOC_NRSHIFT = 0L
 IOC_TYPESHIFT = IOC_NRSHIFT+IOC_NRBITS
@@ -99,8 +99,8 @@ class inputDevices:
 	def setDefaults(self, device):
 		print "[iInputDevices] setDefaults for device %s" % device
 		self.setDeviceAttribute(device, 'configuredName', None)
-		event_repeat = struct.pack('iihhi', 0, 0, 0x14, 0x01, 100)
-		event_delay = struct.pack('iihhi', 0, 0, 0x14, 0x00, 700)
+		event_repeat = struct.pack('LLHHi', 0, 0, 0x14, 0x01, 100)
+		event_delay = struct.pack('LLHHi', 0, 0, 0x14, 0x00, 700)
 		fd = os.open("/dev/input/" + device, os.O_RDWR)
 		os.write(fd, event_repeat)
 		os.write(fd, event_delay)
@@ -109,7 +109,7 @@ class inputDevices:
 	def setRepeat(self, device, value): #REP_PERIOD
 		if self.getDeviceAttribute(device, 'enabled'):
 			print "[iInputDevices] setRepeat for device %s to %d ms" % (device,value)
-			event = struct.pack('iihhi', 0, 0, 0x14, 0x01, int(value))
+			event = struct.pack('LLHHi', 0, 0, 0x14, 0x01, int(value))
 			fd = os.open("/dev/input/" + device, os.O_RDWR)
 			os.write(fd, event)
 			os.close(fd)
@@ -117,7 +117,7 @@ class inputDevices:
 	def setDelay(self, device, value): #REP_DELAY
 		if self.getDeviceAttribute(device, 'enabled'):
 			print "[iInputDevices] setDelay for device %s to %d ms" % (device,value)
-			event = struct.pack('iihhi', 0, 0, 0x14, 0x00, int(value))
+			event = struct.pack('LLHHi', 0, 0, 0x14, 0x00, int(value))
 			fd = os.open("/dev/input/" + device, os.O_RDWR)
 			os.write(fd, event)
 			os.close(fd)
@@ -203,8 +203,6 @@ class RcTypeControl():
 			if config.plugins.remotecontroltype.rctype.value != 0:
 				self.writeRcType(config.plugins.remotecontroltype.rctype.value)
 		else:
-			self.isSupported = False
-		if getBoxType().startswith('gb'):
 			self.isSupported = False
 
 	def multipleRcSupported(self):

@@ -24,8 +24,8 @@ def ChoiceEntryComponent(key = None, text = ["--"]):
 			else:
 				png = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/buttons/key_%s.png" % key))
 			if png:
-				x, y, w, h = skin.parameters.get("ChoicelistIcon",(5, 0, 30, 30))
-				res.append((eListboxPythonMultiContent.TYPE_PIXMAP_ALPHATEST, x, y, w, h, png))
+				x, y, w, h = skin.parameters.get("ChoicelistIcon",(5, 0, 35, 25))
+				res.append((eListboxPythonMultiContent.TYPE_PIXMAP_ALPHABLEND, x, y, w, h, png))
 	return res
 
 class ChoiceList(MenuList):

@@ -280,7 +280,7 @@ public:
 		cVPID, cMPEGAPID, cTPID, cPCRPID, cAC3PID,
 		cVTYPE, cACHANNEL, cAC3DELAY, cPCMDELAY,
 		cSUBTITLE, cAACHEAPID=12, cDDPPID, cAACAPID,
-		cDATAPID, cPMTPID, cacheMax
+		cDATAPID, cPMTPID, cDRAAPID, cAC4PID, cacheMax
 	};
 
 	int getCacheEntry(cacheID);
@@ -305,16 +305,16 @@ public:
 		dxNewFound=64,
 		dxIsDedicated3D=128,
 		dxIsParentalProtected=256,
-		dxHideVBI=512,
 		dxIsScrambledPMT=1024,
 		dxCenterDVBSubs=2048,
+		dxNoEIT=4096,
 	};
 
 	bool usePMT() const { return !(m_flags & dxNoDVB); }
 	bool isHidden() const { return (m_flags & dxDontshow || m_flags & dxIsParentalProtected); }
 	bool isDedicated3D() const { return m_flags & dxIsDedicated3D; }
-	bool doHideVBI() const { return m_flags & dxHideVBI; }
 	bool doCenterDVBSubs() const { return m_flags & dxCenterDVBSubs; }
+	bool useEIT() const { return !(m_flags & dxNoEIT); }
 
 	CAID_LIST m_ca;
 
@@ -414,13 +414,11 @@ class eDVBFrontendParametersATSC;
 
 class iDVBFrontendParameters: public iObject
 {
-#ifdef SWIG
 public:
+#ifdef SWIG
 	iDVBFrontendParameters();
 	~iDVBFrontendParameters();
-private:
 #endif
-public:
 	enum { flagOnlyFree = 1 };
 	virtual SWIG_VOID(RESULT) getSystem(int &SWIG_OUTPUT) const = 0;
 	virtual SWIG_VOID(RESULT) getDVBS(eDVBFrontendParametersSatellite &SWIG_OUTPUT) const = 0;
@@ -486,8 +484,8 @@ class iDVBTransponderData: public iObject
 public:
 	virtual std::string getTunerType() const = 0;
 	virtual int getInversion() const = 0;
-	virtual int getFrequency() const = 0;
-	virtual int getSymbolRate() const = 0;
+	virtual unsigned int getFrequency() const = 0;
+	virtual unsigned int getSymbolRate() const = 0;
 	virtual int getOrbitalPosition() const = 0;
 	virtual int getFecInner() const = 0;
 	virtual int getModulation() const = 0;
@@ -498,6 +496,8 @@ public:
 	virtual int getIsId() const = 0;
 	virtual int getPLSMode() const = 0;
 	virtual int getPLSCode() const = 0;
+	virtual int getT2MIPlpId() const = 0;
+	virtual int getT2MIPid() const = 0;
 	virtual int getBandwidth() const = 0;
 	virtual int getCodeRateLp() const = 0;
 	virtual int getCodeRateHp() const = 0;
@@ -518,7 +518,7 @@ public:
 class iDVBFrontend: public iDVBFrontend_ENUMS, public iObject
 {
 public:
-	virtual RESULT tune(const iDVBFrontendParameters &where)=0;
+	virtual RESULT tune(const iDVBFrontendParameters &where, bool blindscan = false)=0;
 	virtual int closeFrontend(bool force = false, bool no_delayed = false)=0;
 	virtual void reopenFrontend()=0;
 #ifndef SWIG
@@ -687,7 +687,7 @@ class iDVBDemux: public iObject
 public:
 	virtual RESULT createSectionReader(eMainloop *context, ePtr<iDVBSectionReader> &reader)=0;
 	virtual RESULT createPESReader(eMainloop *context, ePtr<iDVBPESReader> &reader)=0;
-	virtual RESULT createTSRecorder(ePtr<iDVBTSRecorder> &recorder, unsigned int packetsize = 188, bool streaming=false)=0;
+	virtual RESULT createTSRecorder(ePtr<iDVBTSRecorder> &recorder, int packetsize = 188, bool streaming=false)=0;
 	virtual RESULT getMPEGDecoder(ePtr<iTSMPEGDecoder> &reader, int index = 0)=0;
 	virtual RESULT getSTC(pts_t &pts, int num=0)=0;
 	virtual RESULT getCADemuxID(uint8_t &id)=0;
@@ -755,13 +755,15 @@ public:
 		enum { eventUnknown = 0,
 			eventSizeChanged = VIDEO_EVENT_SIZE_CHANGED,
 			eventFrameRateChanged = VIDEO_EVENT_FRAME_RATE_CHANGED,
-			eventProgressiveChanged = 16
+			eventProgressiveChanged = 16,
+			eventGammaChanged = 17
 		} type;
 		unsigned char aspect;
 		unsigned short height;
 		unsigned short width;
 		bool progressive;
 		unsigned short framerate;
+		unsigned short gamma;
 	};
 
 	virtual RESULT connectVideoEvent(const sigc::slot1<void, struct videoEvent> &event, ePtr<eConnection> &connection) = 0;
@@ -771,6 +773,7 @@ public:
 	virtual int getVideoProgressive() = 0;
 	virtual int getVideoFrameRate() = 0;
 	virtual int getVideoAspect() = 0;
+	virtual int getVideoGamma() = 0;
 };
 
 #endif //SWIG

@@ -19,7 +19,6 @@ gRC::gRC(): rp(0), wp(0)
 #else
 ,m_notify_pump(eApp, 1)
 #endif
-,m_spinner_enabled(0), m_spinneronoff(1), m_prev_idle_count(0)
 {
 	ASSERT(!instance);
 	instance=this;
@@ -41,6 +40,8 @@ gRC::gRC(): rp(0), wp(0)
 	else
 		eDebug("[gRC] thread created successfully");
 #endif
+	m_spinner_enabled = 0;
+	m_spinneronoff = 1;
 }
 
 DEFINE_REF(gRC);
@@ -400,15 +401,18 @@ void gPainter::clear()
 	m_rc->submit(o);
 }
 
-void gPainter::blit(gPixmap *pixmap, ePoint pos, const eRect &clip, int flags)
+void gPainter::blitScale(gPixmap *pixmap, const eRect &pos, const eRect &clip, int flags, int aflags)
 {
-	blitScale(pixmap, eRect(pos, eSize()), clip, flags, 0);
+	blit(pixmap, pos, clip, flags | aflags);
 }
 
-void gPainter::blitScale(gPixmap *pixmap, const eRect &position, const eRect &clip, int flags, int aflags)
+void gPainter::blit(gPixmap *pixmap, ePoint pos, const eRect &clip, int flags)
 {
-	flags |= aflags;
+	blit(pixmap, eRect(pos, eSize()), clip, flags);
+}
 
+void gPainter::blit(gPixmap *pixmap, const eRect &pos, const eRect &clip, int flags)
+{
 	if ( m_dc->islocked() )
 		return;
 	gOpcode o;
@@ -422,7 +426,7 @@ void gPainter::blitScale(gPixmap *pixmap, const eRect &position, const eRect &cl
 	o.parm.blit->pixmap = pixmap;
 	o.parm.blit->clip = clip;
 	o.parm.blit->flags = flags;
-	o.parm.blit->position = position;
+	o.parm.blit->position = pos;
 	m_rc->submit(o);
 }
 
@@ -439,7 +443,7 @@ void gPainter::setPalette(gRGB *colors, int start, int len)
 	o.parm.setPalette = new gOpcode::para::psetPalette;
 	p->data=new gRGB[len];
 
-	memcpy(p->data, colors, len*sizeof(gRGB));
+	memcpy(static_cast<void*>(p->data), colors, len*sizeof(gRGB));
 	p->start=start;
 	p->colors=len;
 	o.parm.setPalette->palette = p;
@@ -608,32 +612,6 @@ void gPainter::end()
 		return;
 }
 
-#ifdef HAVE_OSDANIMATION
-void gPainter::sendShow(ePoint point, eSize size) {
-	if ( m_dc->islocked() )
-		return;
-	gOpcode o;
-	o.opcode=gOpcode::sendShow;
-	o.dc = m_dc.grabRef();
-	o.parm.setShowHideInfo = new gOpcode::para::psetShowHideInfo;
-	o.parm.setShowHideInfo->point = point;
-	o.parm.setShowHideInfo->size = size;
-	m_rc->submit(o); 
-}
-
-void gPainter::sendHide(ePoint point, eSize size) {
-	if ( m_dc->islocked() )
-		return;
-	gOpcode o;
-	o.opcode=gOpcode::sendHide;
-	o.dc = m_dc.grabRef();
-	o.parm.setShowHideInfo = new gOpcode::para::psetShowHideInfo;
-	o.parm.setShowHideInfo->point = point;
-	o.parm.setShowHideInfo->size = size;
-	m_rc->submit(o); 
-}
-#endif
-
 gDC::gDC()
 {
 	m_spinner_pic = 0;
@@ -793,7 +771,7 @@ void gDC::exec(const gOpcode *o)
 		if (o->parm.setPalette->palette->colors > (m_pixmap->surface->clut.colors-o->parm.setPalette->palette->start))
 			o->parm.setPalette->palette->colors = m_pixmap->surface->clut.colors-o->parm.setPalette->palette->start;
 		if (o->parm.setPalette->palette->colors)
-			memcpy(m_pixmap->surface->clut.data+o->parm.setPalette->palette->start, o->parm.setPalette->palette->data, o->parm.setPalette->palette->colors*sizeof(gRGB));
+			memcpy(static_cast<void*>(m_pixmap->surface->clut.data+o->parm.setPalette->palette->start), o->parm.setPalette->palette->data, o->parm.setPalette->palette->colors*sizeof(gRGB));
 
 		delete[] o->parm.setPalette->palette->data;
 		delete o->parm.setPalette->palette;
@@ -845,14 +823,6 @@ void gDC::exec(const gOpcode *o)
 		break;
 	case gOpcode::flush:
 		break;
-
-#ifdef HAVE_OSDANIMATION
-	case gOpcode::sendShow:
-		break;
-	case gOpcode::sendHide:
-		break;
-#endif
-
 	case gOpcode::enableSpinner:
 		enableSpinner();
 		break;
@@ -921,7 +891,7 @@ void gDC::incrementSpinner()
 	m_spinner_temp->blit(*m_spinner_saved, eRect(0, 0, 0, 0), eRect(ePoint(0, 0), m_spinner_pos.size()));
 
 	if (m_spinner_pic[m_spinner_i])
-		m_spinner_temp->blit(*m_spinner_pic[m_spinner_i], eRect(0, 0, 0, 0), eRect(ePoint(0, 0), m_spinner_pos.size()), gPixmap::blitAlphaBlend);
+		m_spinner_temp->blit(*m_spinner_pic[m_spinner_i], eRect(0, 0, 0, 0), eRect(ePoint(0, 0), m_spinner_pos.size()), gPixmap::blitAlphaTest);
 
 	m_pixmap->blit(*m_spinner_temp, eRect(m_spinner_pos.topLeft(), eSize()), gRegion(m_spinner_pos), 0);
 	m_spinner_i++;

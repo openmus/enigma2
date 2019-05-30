@@ -102,7 +102,7 @@ public:
 class eDVBCAService: public eUnixDomainSocket
 {
 	eServiceReferenceDVB m_service;
-	uint8_t m_used_demux[8];
+	uint8_t m_used_demux[32];
 	uint8_t m_adapter;
 	uint32_t m_service_type_mask;
 	uint64_t m_prev_build_hash;
@@ -136,13 +136,11 @@ typedef std::map<eServiceReferenceDVB, eDVBCAService*> CAServiceMap;
 SWIG_IGNORE(iCryptoInfo);
 class iCryptoInfo : public iObject
 {
-#ifdef SWIG
 public:
+#ifdef SWIG
 	iCryptoInfo();
 	~iCryptoInfo();
-private:
 #endif
-public:
 	PSignal1<void, const char*> clientname;
 	PSignal1<void, const char*> clientinfo;
 	PSignal1<void, const char*> verboseinfo;

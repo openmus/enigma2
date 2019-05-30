@@ -178,7 +178,6 @@ class eDVBResourceManager: public iObject, public sigc::trackable
 	ePtr<iDVBChannelList> m_list;
 	ePtr<iDVBSatelliteEquipmentControl> m_sec;
 	static eDVBResourceManager *instance;
-
 	friend class eDVBChannel;
 	friend class eFBCTunerManager;
 	ePtr<eFBCTunerManager> m_fbcmng;
@@ -243,7 +242,7 @@ public:
 	bool frontendIsCompatible(int index, const char *type);
 	bool frontendIsMultistream(int index);
 	std::string getFrontendCapabilities(int index);
-	void setFrontendType(int index, const char *type);
+	void setFrontendType(int index, const char *types);
 };
 SWIG_TEMPLATE_TYPEDEF(ePtr<eDVBResourceManager>, eDVBResourceManager);
 SWIG_EXTEND(ePtr<eDVBResourceManager>,
@@ -308,7 +307,6 @@ private:
 	sigc::signal2<void,iDVBChannel*,int> m_event;
 	int m_state;
 	ePtr<iTsSource> m_source;
-	std::string m_streaminfo_file;
 
 			/* for channel list */
 	ePtr<eDVBResourceManager> m_mgr;
@@ -331,7 +329,7 @@ private:
 	int m_skipmode_m, m_skipmode_n, m_skipmode_frames, m_skipmode_frames_remainder;
 
 	std::list<std::pair<off_t, off_t> > m_source_span;
-	void getNextSourceSpan(off_t current_offset, size_t bytes_read, off_t &start, size_t &size, int blocksize);
+	void getNextSourceSpan(off_t current_offset, size_t bytes_read, off_t &start, size_t &size, int blocksize, int &sof);
 	void flushPVR(iDVBDemux *decoding_demux=0);
 
 	eSingleLock m_cuesheet_lock;

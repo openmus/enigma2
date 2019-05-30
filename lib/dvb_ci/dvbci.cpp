@@ -2,6 +2,11 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 
+#include <ios>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+
 #include <lib/base/init.h>
 #include <lib/base/init_num.h>
 #include <lib/base/cfile.h>
@@ -30,43 +35,195 @@
 
 eDVBCIInterfaces *eDVBCIInterfaces::instance = 0;
 
-eDVBCIInterfaces::eDVBCIInterfaces()
-{
 
-	char buf[64];
-	int ci_num;
-	ePtr<eDVBCISlot> cislot;
+eCIClient::eCIClient(eDVBCIInterfaces *handler, int socket) : eUnixDomainSocket(socket, 1, eApp), parent(handler)
+{
+	receivedData = NULL;
+	receivedCmd = 0;
+	CONNECT(connectionClosed_, eCIClient::connectionLost);
+	CONNECT(readyRead_, eCIClient::dataAvailable);
+}
+
+void eCIClient::connectionLost()
+{
+	if (parent) parent->connectionLost();
+}
+
+void eCIClient::dataAvailable()
+{
+	if (!receivedCmd)
+	{
+		if ((unsigned int)bytesAvailable() < sizeof(ciplus_header)) return;
+		if ((unsigned int)readBlock((char*)&header, sizeof(ciplus_header)) < sizeof(ciplus_header)) return;
+		header.magic = ntohl(header.magic);
+		header.cmd = ntohl(header.cmd);
+		header.size = ntohl(header.size);
+		if (header.magic != CIPLUSHELPER_MAGIC)
+		{
+			if (parent) parent->connectionLost();
+			return;
+		}
+		receivedCmd = header.cmd;
+		receivedCmdSize = header.size;
+	}
+	if (receivedCmdSize)
+	{
+		if ((unsigned int)bytesAvailable() < receivedCmdSize) return;
+		if (receivedCmdSize) delete [] receivedData;
+		receivedData = new unsigned char[receivedCmdSize];
+		if ((unsigned int)readBlock((char*)receivedData, receivedCmdSize) < receivedCmdSize) return;
+
+		ciplus_message *message = (ciplus_message *)receivedData;
+		switch (header.cmd)
+		{
+		default:
+			{
+				unsigned char *data = &receivedData[sizeof(ciplus_message)];
+				parent->getSlot(ntohl(message->slot))->send(data, ntohl(message->size));
+			}
+			break;
+		case eCIClient::CIPLUSHELPER_STATE_CHANGED:
+			{
+				eDVBCISession::setAction(ntohl(message->session), receivedData[sizeof(ciplus_message)]);
+			}
+			break;
+		}
+		receivedCmdSize = 0;
+		receivedCmd = 0;
+	}
+}
+
+void eCIClient::sendData(int cmd, int slot, int session, unsigned long idtag, unsigned char *tag, unsigned char *data, int len)
+{
+	ciplus_message message;
+	message.slot = ntohl(slot);
+	message.idtag = ntohl(idtag);
+	memcpy(&message.tag, tag, 4);
+	message.session = ntohl(session);
+	message.size = ntohl(len);
+
+	ciplus_header header;
+	header.magic = htonl(CIPLUSHELPER_MAGIC);
+	header.size = htonl(sizeof(message) + len);
+	header.cmd = htonl(cmd);
+
+	writeBlock((const char*)&header, sizeof(header));
+	writeBlock((const char*)&message, sizeof(message));
+	if (len)
+	{
+		writeBlock((const char*)data, len);
+	}
+}
+
+void eDVBCIInterfaces::newConnection(int socket)
+{
+	if (client)
+	{
+		delete client;
+	}
+	client = new eCIClient(this, socket);
+}
+
+void eDVBCIInterfaces::connectionLost()
+{
+	if (client)
+	{
+		delete client;
+		client = NULL;
+	}
+}
+
+void eDVBCIInterfaces::sendDataToHelper(int cmd, int slot, int session, unsigned long idtag, unsigned char *tag, unsigned char *data, int len)
+{
+	if (client)	client->sendData(cmd, slot, session, idtag, tag, data, len);
+}
+
+bool eDVBCIInterfaces::isClientConnected()
+{
+	if (client) return true;
+	return false;
+}
+
+#define CIPLUS_SERVER_SOCKET "/tmp/.listen.ciplus.socket"
+
+eDVBCIInterfaces::eDVBCIInterfaces()
+ : eServerSocket(CIPLUS_SERVER_SOCKET, eApp)
+{
+	int num_ci = 0;
+	std::stringstream path;
 
 	instance = this;
+	client = NULL;
+	m_stream_interface = interface_none;
+	m_stream_finish_mode = finish_none;
 
 	eDebug("[CI] scanning for common interfaces..");
 
-	for(ci_num = 0; ci_num < 8; ci_num++)
+	for (;;)
 	{
-		snprintf(buf, sizeof(buf), "/dev/ci%d", ci_num);
+		path.str("");
+		path.clear();
+		path << "/dev/ci" << num_ci;
 
-		if(::access(buf, R_OK))
+		if(::access(path.str().c_str(), R_OK) < 0)
 			break;
 
-		cislot = new eDVBCISlot(eApp, ci_num);
-		cislot->setSource("A");
+		ePtr<eDVBCISlot> cislot;
+
+		cislot = new eDVBCISlot(eApp, num_ci);
 		m_slots.push_back(cislot);
+
+		++num_ci;
 	}
 
 	for (eSmartPtrList<eDVBCISlot>::iterator it(m_slots.begin()); it != m_slots.end(); ++it)
 		it->setSource("A");
 
-	for (int tuner_no = 0; tuner_no < (ci_num > 1 ? 26 : 2); ++tuner_no) // NOTE: this assumes tuners are A .. Z max.
+	for (int tuner_no = 0; tuner_no < 26; ++tuner_no) // NOTE: this assumes tuners are A .. Z max.
 	{
-		char filename[32];
-		snprintf(filename, sizeof(filename), "/proc/stb/tsmux/input%d", tuner_no);
+		path.str("");
+		path.clear();
+		path << "/proc/stb/tsmux/input" << tuner_no << "_choices";
 
-		if (::access(filename, R_OK) < 0) break;
+		if(::access(path.str().c_str(), R_OK) < 0)
+			break;
 
 		setInputSource(tuner_no, eDVBCISlot::getTunerLetter(tuner_no));
 	}
 
-	eDebug("[CI] done, found %d common interface slots", ci_num);
+	eDebug("[CI] done, found %d common interface slots", num_ci);
+
+	if (num_ci)
+	{
+		static const char *proc_ci_choices = "/proc/stb/tsmux/ci0_input_choices";
+
+		if (CFile::contains_word(proc_ci_choices, "PVR"))	// lowest prio = PVR
+			m_stream_interface = interface_use_pvr;
+
+		if (CFile::contains_word(proc_ci_choices, "DVR"))	// low prio = DVR
+			m_stream_interface = interface_use_dvr;
+
+		if (CFile::contains_word(proc_ci_choices, "DVR0"))	// high prio = DVR0
+			m_stream_interface = interface_use_dvr;
+
+		if (m_stream_interface == interface_none)			// fallback = DVR
+		{
+			m_stream_interface = interface_use_dvr;
+			eDebug("[CI] Streaming CI routing interface not advertised, assuming DVR method");
+		}
+
+		if (CFile::contains_word(proc_ci_choices, "PVR_NONE"))	// low prio = PVR_NONE
+			m_stream_finish_mode = finish_use_pvr_none;
+
+		if (CFile::contains_word(proc_ci_choices, "NONE"))		// high prio = NONE
+			m_stream_finish_mode = finish_use_none;
+
+		if (m_stream_finish_mode == finish_none)				// fallback = "tuner"
+		{
+			m_stream_finish_mode = finish_use_tuner_a;
+			eDebug("[CI] Streaming CI finish interface not advertised, assuming \"tuner\" method");
+		}
+	}
 }
 
 eDVBCIInterfaces::~eDVBCIInterfaces()
@@ -222,7 +379,7 @@ void eDVBCIInterfaces::ciRemoved(eDVBCISlot *slot)
 		if (slot->linked_next)
 			slot->linked_next->setSource(slot->current_source);
 		else // last CI in chain
-			setInputSource(slot->current_tuner, slot->current_source);
+			setInputSource(slot->current_tuner, eDVBCISlot::getTunerLetter(slot->current_tuner));
 		slot->linked_next = 0;
 		slot->use_count=0;
 		slot->plugged=true;
@@ -489,9 +646,29 @@ void eDVBCIInterfaces::recheckPMTHandlers()
 								 *
 								 * No need to set tuner input (setInputSource), because we have no tuner.
 								 */
-								std::stringstream source;
-								source << "DVR" << channel->getDvrId();
-								ci_it->setSource(source.str());
+
+								switch(m_stream_interface)
+								{
+									case interface_use_dvr:
+									{
+										std::stringstream source;
+										source << "DVR" << channel->getDvrId();
+										ci_it->setSource(source.str());
+										break;
+									}
+
+									case interface_use_pvr:
+									{
+										ci_it->setSource("PVR");
+										break;
+									}
+
+									default:
+									{
+										eDebug("[CI] warning: no valid CI streaming interface");
+										break;
+									}
+								}
 							}
 						}
 						ci_it->current_tuner = tunernum;
@@ -575,8 +752,45 @@ void eDVBCIInterfaces::removePMTHandler(eDVBServicePMTHandler *pmthandler)
 				caids.push_back(0xFFFF);
 				slot->sendCAPMT(pmthandler, caids);  // send a capmt without caids to remove a running service
 				slot->removeService(service_to_remove.getServiceID().get());
-				/* restore ci source to the default (tuner "A") */
-				slot->setSource("A");
+
+				if (slot->current_tuner == -1)
+				{
+					// no previous tuner to go back to, signal to CI interface CI action is finished
+
+					std::string finish_source;
+
+					switch (m_stream_finish_mode)
+					{
+						case finish_use_tuner_a:
+						{
+							finish_source = "A";
+							break;
+						}
+
+						case finish_use_pvr_none:
+						{
+							finish_source = "PVR_NONE";
+							break;
+						}
+
+						case finish_use_none:
+						{
+							finish_source = "NONE";
+							break;
+						}
+
+						default:
+							(void)0;
+					}
+
+					if(finish_source == "")
+					{
+						eDebug("[CI] warning: CI streaming finish mode not set, assuming \"tuner A\"");
+						finish_source = "A";
+					}
+
+					slot->setSource(finish_source);
+				}
 			}
 
 			if (!--slot->use_count)
@@ -584,7 +798,7 @@ void eDVBCIInterfaces::removePMTHandler(eDVBServicePMTHandler *pmthandler)
 				if (slot->linked_next)
 					slot->linked_next->setSource(slot->current_source);
 				else
-					setInputSource(slot->current_tuner, slot->current_source);
+					setInputSource(slot->current_tuner, eDVBCISlot::getTunerLetter(slot->current_tuner));
 
 				if (base_slot != slot)
 				{

@@ -1,8 +1,7 @@
-from boxbranding import getMachineBrand, getMachineName
 from Screen import Screen
 from Screens.MessageBox import MessageBox
 from Components.config import config, ConfigText, ConfigPassword, KEY_LEFT, KEY_RIGHT, KEY_0, KEY_DELETE, KEY_BACKSPACE, KEY_ASCII
-from Components.SystemInfo import SystemInfo
+
 from Components.Label import Label
 from Components.Sources.StaticText import StaticText
 from Components.Slider import Slider
@@ -362,17 +361,22 @@ class Wizard(Screen):
 
 		if self.showConfig:
 			if self.wizard[currStep]["config"]["screen"] is not None:
+				if self.configInstance.__class__.__name__ == "NimSetup" and self.configInstance["config"].getCurrent()[1].__class__.__name__ == "ConfigNothing":
+					self.configInstance.keyRight()
+					return
 				# TODO: don't die, if no run() is available
 				# there was a try/except here, but i can't see a reason
 				# for this. If there is one, please do a more specific check
 				# and/or a comment in which situation there is no run()
-				if callable(getattr(self.configInstance, "runAsync", None)):
+				elif callable(getattr(self.configInstance, "runAsync", None)):
 					if self.updateValues in self.onShown:
 						self.onShown.remove(self.updateValues)
 					self.configInstance.runAsync(self.finished)
 					return
 				else:
 					self.configInstance.run()
+					if hasattr(self.configInstance, "doNextStep") and not self.configInstance.doNextStep:
+						return
 		self.finished()
 
 	def keyNumberGlobal(self, number):
@@ -456,7 +460,7 @@ class Wizard(Screen):
 		return False
 
 	def getTranslation(self, text):
-		return _(text).replace("%s %s","%s %s" % (getMachineBrand(), getMachineName()))
+		return _(text)
 
 	def updateText(self, firstset = False):
 		text = self.getTranslation(self.wizard[self.currStep]["text"])
@@ -592,9 +596,10 @@ class Wizard(Screen):
 						if self.wizard[self.currStep]["config"]["args"] is None:
 							self.configInstance = self.session.instantiateDialog(self.wizard[self.currStep]["config"]["screen"])
 						else:
-							self.configInstance = self.session.instantiateDialog(self.wizard[self.currStep]["config"]["screen"], eval(self.wizard[self.currStep]["config"]["args"]))
-						if SystemInfo["hasOSDAnimation"]:
-							self.configInstance.setAnimationMode(0)
+							try:
+								self.configInstance = self.session.instantiateDialog(self.wizard[self.currStep]["config"]["screen"], eval(self.wizard[self.currStep]["config"]["args"]))
+							except:
+								self.configInstance = self.session.instantiateDialog(self.wizard[self.currStep]["config"]["screen"], self.wizard[self.currStep]["config"]["args"])
 						self["config"].l.setList(self.configInstance["config"].list)
 						callbacks = self.configInstance["config"].onSelectionChanged
 						self.configInstance["config"].destroy()
@@ -643,10 +648,6 @@ class Wizard(Screen):
 				self["VKeyIcon"].boolean = False
 
 	def KeyText(self):
-		if self.updateValues in self.onShown:
-			self.onShown.remove(self.updateValues)
-		if self["config"].getCurrent()[1].help_window:
-			self["config"].getCurrent()[1].help_window.hide()
 		from Screens.VirtualKeyBoard import VirtualKeyBoard
 		self.currentConfigIndex = self["config"].getCurrentIndex()
 		self.session.openWithCallback(self.VirtualKeyBoardCallback, VirtualKeyBoard, title = self["config"].getCurrent()[0], text = self["config"].getCurrent()[1].getValue())
@@ -663,10 +664,6 @@ class Wizard(Screen):
 			self["config"].setCurrentIndex(self.currentConfigIndex)
 			self["config"].getCurrent()[1].setValue(callback)
 			self["config"].invalidate(self["config"].getCurrent())
-		if not self.updateValues in self.onShown:
-			self.onShown.append(self.updateValues)
-		if self["config"].getCurrent()[1].help_window:
-			self["config"].getCurrent()[1].help_window.show()
 
 
 class WizardManager:

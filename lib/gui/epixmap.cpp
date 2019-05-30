@@ -36,7 +36,7 @@ void ePixmap::setPixmap(ePtr<gPixmap> &pixmap)
 
 void ePixmap::setPixmapFromFile(const char *filename)
 {
-	loadPNG(m_pixmap, filename);
+	loadPNG(m_pixmap, filename, m_scale);
 
 	if (!m_pixmap)
 	{
@@ -100,9 +100,8 @@ int ePixmap::event(int event, void *data, void *data2)
 			else if (m_alphatest == 2)
 				flags = gPainter::BT_ALPHABLEND;
 			if (m_scale)
-				painter.blitScale(m_pixmap, eRect(ePoint(0, 0), s), eRect(), flags);
-			else
-				painter.blit(m_pixmap, ePoint(0, 0), eRect(), flags);
+				flags |= gPainter::BT_SCALE;
+			painter.blit(m_pixmap, eRect(ePoint(0, 0), s), eRect(), flags);
 		}
 
 		if (m_have_border_color)

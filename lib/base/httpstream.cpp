@@ -3,6 +3,7 @@
 #include <lib/base/httpstream.h>
 #include <lib/base/eerror.h>
 #include <lib/base/wrappers.h>
+#include <lib/base/nconfig.h> // access to python config
 
 DEFINE_REF(eHttpStream);
 
@@ -15,6 +16,10 @@ eHttpStream::eHttpStream()
 	partialPktSz = 0;
 	tmpBufSize = 32;
 	tmpBuf = (char*)malloc(tmpBufSize);
+	if (eConfigManager::getConfigBoolValue("config.usage.remote_fallback_enabled", false))
+		startDelay = 500000;
+	else
+		startDelay = 0;
 }
 
 eHttpStream::~eHttpStream()
@@ -235,7 +240,7 @@ int eHttpStream::open(const char *url)
 void eHttpStream::thread()
 {
 	hasStarted();
-	sleep(1);
+	usleep(startDelay); // wait up to half a second
 	std::string currenturl, newurl;
 	currenturl = streamUrl;
 	for (unsigned int i = 0; i < 5; i++)
@@ -390,10 +395,3 @@ off_t eHttpStream::offset()
 {
 	return 0;
 }
-
-int eHttpStream::reconnect()
-{
-	close();
-	return open(streamUrl.c_str());
-}
-
