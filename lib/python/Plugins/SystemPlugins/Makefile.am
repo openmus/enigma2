@@ -4,7 +4,7 @@ SUBDIRS = SoftwareManager PositionerSetup Satfinder \
 	SkinSelector SatelliteEquipmentControl Videomode VideoTune Hotplug \
 	DefaultServicesScanner DiseqcTester CommonInterfaceAssignment GBAspectRatioSwitch \
 	CableScan FastScan OSDPositionSetup OSD3DSetup HdmiCEC VideoClippingSetup \
-	VideoEnhancement WirelessLan NetworkWizard DeviceManager \
+	VideoEnhancement WirelessLan NetworkWizard \
 	SwapManager SoftcamStartup
 
 if HAVE_OSDANIMATION
