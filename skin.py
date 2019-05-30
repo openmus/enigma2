@@ -85,7 +85,7 @@ else:
 	if os.path.isfile('/usr/share/enigma2/OctEtSD/skin.xml'):
 		DEFAULT_SKIN = "OctEtSD/skin.xml"
 	else:
-DEFAULT_SKIN = "PLi-HD/skin.xml"
+                DEFAULT_SKIN = "PLi-HD/skin.xml"
 # on SD hardware, PLi-HD will not be available
 if not fileExists(resolveFilename(SCOPE_SKIN, DEFAULT_SKIN)):
 	# in that case, fallback to Magic (which is an SD skin)
