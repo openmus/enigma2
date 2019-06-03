@@ -1089,3 +1089,4 @@ def readSkin(screen, skin, names, desktop):
 	# things around.
 	screen = None
 	visited_components = None
+
