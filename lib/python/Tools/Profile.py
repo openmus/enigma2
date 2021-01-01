@@ -1,6 +1,9 @@
 # the implementation here is a bit crappy.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 import time
-from Directories import resolveFilename, SCOPE_CONFIG
+from Tools.Directories import resolveFilename, SCOPE_CONFIG
 
 PERCENTAGE_START = 0
 PERCENTAGE_END = 100
@@ -21,26 +24,25 @@ try:
 		total_time = t
 		profile_data[id] = t
 except:
-	print "no profile data available"
+	print("no profile data available")
 
 try:
 	profile_file = open(resolveFilename(SCOPE_CONFIG, "profile"), "w")
 except IOError:
-	print "WARNING: couldn't open profile file!"
+	print("WARNING: couldn't open profile file!")
 
 def profile(id):
 	now = time.time() - profile_start
 	if profile_file:
-		profile_file.write("%7.3f\t%s\n" % (now, id))
+		profile_file.write("%.2f\t%s\n" % (now, id))
 
-		if id in profile_data:
+		if id in profile_data and total_time:
 			t = profile_data[id]
-			if total_time:
-				perc = t * (PERCENTAGE_END - PERCENTAGE_START) / total_time + PERCENTAGE_START
-			else:
-				perc = PERCENTAGE_START
+			perc = t * (PERCENTAGE_END - PERCENTAGE_START) // total_time + PERCENTAGE_START
+			print("profile: %s: %d" % (id, perc))
 			try:
-				open("/proc/progress", "w").write("%d \n" % perc)
+				with open("/proc/progress", "w") as f:
+					f.write("%d\n" % perc)
 			except IOError:
 				pass
 

@@ -243,15 +243,32 @@ AC_SUBST(ENIGMA2_CFLAGS)
 
 AX_CXX_COMPILE_STDCXX_11([ext],[mandatory])
 
+AX_CHECK_COMPILE_FLAG([-Wattribute-alias], [CXXFLAGS="$CXXFLAGS -Wattribute-alias"])
+AX_CHECK_COMPILE_FLAG([-Wattribute-alias=1], [CXXFLAGS="$CXXFLAGS -Wattribute-alias=1"])
+
 CPPFLAGS="$CPPFLAGS $PYTHON_CPPFLAGS"
 CFLAGS="$CFLAGS -Wall"
-CXXFLAGS="$CXXFLAGS -Wall $BASE_CFLAGS $ENIGMA2_CFLAGS $PTHREAD_CFLAGS $OPENMP_CFLAGS $ALSA_CFLAGS"
+CXXFLAGS="$CXXFLAGS -Wall -Wextra -Werror \
+	-Wformat=2 -Wformat-overflow=2 -Wformat-nonliteral -Wformat-security \
+	-Wimplicit-fallthrough=5 -Wduplicated-branches -Wtrampolines \
+	-Wdangling-else -Wshift-overflow=2 -Wswitch \
+	-Wunused-but-set-parameter -Wunused-const-variable=1 -Wuninitialized \
+	-Wstringop-overflow=3 -Woverlength-strings \
+	-Wunsafe-loop-optimizations -Wpointer-arith \
+	-Wfloat-equal -Wlogical-op \
+	-Wno-error=cast-align=strict -Wno-error=ignored-qualifiers \
+	-Wno-error=cast-function-type \
+	-Wno-error=stringop-truncation -Wno-error=shadow -Wno-error=cast-qual \
+	-Wno-error=aggregate-return -Wno-error=missing-field-initializers \
+	-Wno-error=packed -Wno-error=vla -Wno-error=clobbered -Wno-error=unused-parameter \
+	$BASE_CFLAGS $ENIGMA2_CFLAGS $PTHREAD_CFLAGS $OPENMP_CFLAGS $ALSA_CFLAGS"
 
 AC_CONFIG_FILES([
 Makefile
 data/Makefile
 data/fonts/Makefile
 data/countries/Makefile
+data/display/Makefile
 data/extensions/Makefile
 data/keymaps/Makefile
 data/hw_info/Makefile
@@ -260,8 +277,12 @@ data/skin_default/Makefile
 data/skin_default/menu/Makefile
 data/skin_default/icons/Makefile
 data/skin_default/buttons/Makefile
+data/skin_default/epg/Makefile
 data/skin_default/spinner/Makefile
 data/skin_default/LCDIcons/Makefile
+data/skin_fallback_1080/Makefile
+data/skin_fallback_1080/buttons/Makefile
+data/skin_fallback_1080/icons/Makefile
 include/Makefile
 lib/Makefile
 lib/base/eenv.cpp
@@ -297,8 +318,6 @@ lib/python/Plugins/Extensions/PicturePlayer/data/Makefile
 lib/python/Plugins/Extensions/SocketMMI/Makefile
 lib/python/Plugins/Extensions/SocketMMI/meta/Makefile
 lib/python/Plugins/Extensions/SocketMMI/src/Makefile
-lib/python/Plugins/Extensions/TuxboxPlugins/Makefile
-lib/python/Plugins/Extensions/TuxboxPlugins/meta/Makefile
 lib/python/Plugins/PLi/Makefile
 lib/python/Plugins/SystemPlugins/CommonInterfaceAssignment/Makefile
 lib/python/Plugins/SystemPlugins/CommonInterfaceAssignment/meta/Makefile
@@ -319,8 +338,6 @@ lib/python/Plugins/SystemPlugins/SatelliteEquipmentControl/Makefile
 lib/python/Plugins/SystemPlugins/SatelliteEquipmentControl/meta/Makefile
 lib/python/Plugins/SystemPlugins/Satfinder/Makefile
 lib/python/Plugins/SystemPlugins/Satfinder/meta/Makefile
-lib/python/Plugins/SystemPlugins/SkinSelector/Makefile
-lib/python/Plugins/SystemPlugins/SkinSelector/meta/Makefile
 lib/python/Plugins/SystemPlugins/SoftwareManager/Makefile
 lib/python/Plugins/SystemPlugins/SoftwareManager/meta/Makefile
 lib/python/Plugins/SystemPlugins/VideoEnhancement/Makefile

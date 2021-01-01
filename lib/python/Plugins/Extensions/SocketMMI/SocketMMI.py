@@ -1,32 +1,36 @@
 from Screens.Ci import MMIDialog
-import socketmmi
+from socketmmi import eSocket_UI
 
 class SocketMMIMessageHandler:
 	def __init__(self):
 		self.session = None
 		self.dlgs = { }
-		socketmmi.getSocketStateChangedCallbackList().append(self.socketStateChanged)
+		self.socket_ui = eSocket_UI.getInstance()
+		self.socketStateChanged_conn = self.socket_ui.socketStateChanged.connect(self.socketStateChanged)
 
 	def setSession(self, session):
 		self.session = session
 
-	def connected(self):
-		return socketmmi.getState(0)
+	def numConnections(self):
+		return self.socket_ui.numConnections()
 
-	def getName(self):
-		return socketmmi.getName(0)
+	def getState(self, slot):
+		return self.socket_ui.getState(slot)
 
-	def startMMI(self):
-		slot = 0
-		self.dlgs[slot] = self.session.openWithCallback(self.dlgClosed, MMIDialog, slot, 2, socketmmi, _("wait for mmi..."))
+	def getName(self, slot):
+		return self.socket_ui.getName(slot)
+
+	def startMMI(self, slot):
+		self.dlgs[slot] = self.session.openWithCallback(self.dlgClosed, MMIDialog, slot, 2, self.socket_ui, _("wait for mmi..."))
 
 	def socketStateChanged(self, slot):
 		if slot in self.dlgs:
 			self.dlgs[slot].ciStateChanged()
-		elif socketmmi.availableMMI(slot) == 1:
+		elif self.socket_ui.availableMMI(slot) == 1:
 			if self.session:
-				self.dlgs[slot] = self.session.openWithCallback(self.dlgClosed, MMIDialog, slot, 3, socketmmi, _("wait for mmi..."))
+				self.dlgs[slot] = self.session.openWithCallback(self.dlgClosed, MMIDialog, slot, 3, self.socket_ui, _("wait for mmi..."))
 
 	def dlgClosed(self, slot):
 		if slot in self.dlgs:
 			del self.dlgs[slot]
+

@@ -179,18 +179,17 @@ class MovieList(GUIComponent):
 		if root is not None:
 			self.reload(root)
 
-		self.l.setBuildFunc(self.buildMovieListEntry)
-
 		self.onSelectionChanged = [ ]
 		self.iconPart = []
 		for part in range(5):
-			self.iconPart.append(LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/part_%d_4.png" % part)))
-		self.iconMovieRec = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/part_new.png"))
-		self.iconMoviePlay = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/movie_play.png"))
-		self.iconMoviePlayRec = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/movie_play_rec.png"))
-		self.iconUnwatched = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/part_unwatched.png"))
-		self.iconFolder = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/folder.png"))
-		self.iconTrash = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/trashcan.png"))
+			self.iconPart.append(LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/part_%d_4.png" % part)))
+		self.iconMovieRec = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/part_new.png"))
+		self.iconMoviePlay = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/movie_play.png"))
+		self.iconMoviePlayRec = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/movie_play_rec.png"))
+		self.iconUnwatched = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/part_unwatched.png"))
+		self.iconFolder = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/folder.png"))
+		self.iconTrash = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/trashcan.png"))
+		self.iconCutting = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/cutting.png"))
 		self.runningTimers = {}
 		self.updateRecordings()
 
@@ -218,7 +217,7 @@ class MovieList(GUIComponent):
 		result = {}
 		for timer in NavigationInstance.instance.RecordTimer.timer_list:
 			if timer.isRunning() and not timer.justplay:
-				result[os.path.split(timer.Filename)[1]+'.ts'] = timer
+				result[os.path.split(timer.Filename)[1] + timer.record_service.getFilenameExtension()] = timer
 		if self.runningTimers == result:
 			return
 		self.runningTimers = result
@@ -368,6 +367,8 @@ class MovieList(GUIComponent):
 					res.append(MultiContentEntryText(pos=(x, 0), size=(width-x-tn-r, self.itemHeight), font = 0, flags = RT_HALIGN_LEFT|valign_center, text = _("Deleted items")))
 					res.append(MultiContentEntryText(pos=(width-tn-r, 0), size=(tn, self.itemHeight), font=1, flags=RT_HALIGN_RIGHT|valign_center, text=_("Trash can")))
 					return res
+			if not config.movielist.show_underlines.value:
+				txt = txt.replace('_', ' ').strip()
 			res.append(MultiContentEntryPixmapAlphaTest(pos=(0,self.dirShift), size=(iconSize,iconSize), png=self.iconFolder))
 			res.append(MultiContentEntryText(pos=(x, 0), size=(width-x-tn-r, self.itemHeight), font = 0, flags = RT_HALIGN_LEFT|valign_center, text = txt))
 			res.append(MultiContentEntryText(pos=(width-tn-r, 0), size=(tn, self.itemHeight), font=1, flags=RT_HALIGN_RIGHT|valign_center, text=_("Directory")))
@@ -381,7 +382,10 @@ class MovieList(GUIComponent):
 			else:
 				data.len = 0 #dont recalc movielist to speedup loading the list
 			self.list[cur_idx] = (x[0], x[1], x[2], data) #update entry in list... so next time we don't need to recalc
-			data.txt = info.getName(serviceref)
+			if config.movielist.show_underlines.value:
+				data.txt = info.getName(serviceref)
+			else:
+				data.txt = info.getName(serviceref).replace('_', ' ').strip()
 			if config.movielist.hide_extensions.value:
 				fileName, fileExtension = os.path.splitext(data.txt)
 				if fileExtension in KNOWN_EXTENSIONS:
@@ -395,6 +399,8 @@ class MovieList(GUIComponent):
 					data.icon = self.iconMovieRec
 			elif self.playInBackground and serviceref == self.playInBackground:
 				data.icon = self.iconMoviePlay
+			elif pathName.endswith(".tmpcut.ts"): # cutting with moviecut plugin to same filename
+				data.icon = self.iconCutting
 			else:
 				switch = config.usage.show_icons_in_movielist.value
 				data.part = moviePlayState(pathName + '.cuts', serviceref, data.len)
@@ -565,6 +571,7 @@ class MovieList(GUIComponent):
 			self.load(root, filter_tags)
 		else:
 			self.load(self.root, filter_tags)
+		self.l.setBuildFunc(self.buildMovieListEntry)  # don't move that to __init__ as this will create memory leak when calling MovieList from WebIf
 		self.l.setList(self.list)
 
 	def removeService(self, service):
@@ -622,7 +629,7 @@ class MovieList(GUIComponent):
 				break
 			if config.ParentalControl.servicepinactive.value and config.ParentalControl.storeservicepin.value != "never":
 				from Components.ParentalControl import parentalControl
-				if not parentalControl.sessionPinCached and parentalControl.isProtected(serviceref):
+				if not parentalControl.sessionPinCached and parentalControl.isProtected(serviceref) and config.ParentalControl.storeservicepin.value != 'never' and config.ParentalControl.hideBlacklist.value:
 					continue
 			info = serviceHandler.info(serviceref)
 			if info is None:

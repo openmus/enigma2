@@ -64,7 +64,7 @@ EXTENSIONS = {
 
 def FileEntryComponent(name, absolute = None, isDir = False):
 	res = [ (absolute, isDir) ]
-	x, y, w, h = skin.parameters.get("FileListName",(35, 1, 470, 20))
+	x, y, w, h = skin.parameters.get("FileListName",(35, 1, 600, 20))
 	res.append((eListboxPythonMultiContent.TYPE_TEXT, x, y, w, h, 0, RT_HALIGN_LEFT, name))
 	if isDir:
 		png = LoadPixmap(cached=True, path=resolveFilename(SCOPE_CURRENT_SKIN, "extensions/directory.png"))
@@ -300,7 +300,7 @@ class FileList(MenuList):
 
 def MultiFileSelectEntryComponent(name, absolute = None, isDir = False, selected = False):
 	res = [ (absolute, isDir, selected, name) ]
-	x, y, w, h = skin.parameters.get("FileListMultiName",(55, 0, 470, 25))
+	x, y, w, h = skin.parameters.get("FileListMultiName",(55, 0, 600, 25))
 	res.append((eListboxPythonMultiContent.TYPE_TEXT, x, y, w, h, 0, RT_HALIGN_LEFT, name))
 	if isDir:
 		png = LoadPixmap(cached=True, path=resolveFilename(SCOPE_CURRENT_SKIN, "extensions/directory.png"))
@@ -316,9 +316,9 @@ def MultiFileSelectEntryComponent(name, absolute = None, isDir = False, selected
 		res.append((eListboxPythonMultiContent.TYPE_PIXMAP_ALPHABLEND, x, y, w, h, png))
 	if not name.startswith('<'):
 		if selected:
-			icon = LoadPixmap(cached=True, path=resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/lock_on.png"))
+			icon = LoadPixmap(cached=True, path=resolveFilename(SCOPE_CURRENT_SKIN, "icons/lock_on.png"))
 		else:
-			icon = LoadPixmap(cached=True, path=resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/lock_off.png"))
+			icon = LoadPixmap(cached=True, path=resolveFilename(SCOPE_CURRENT_SKIN, "icons/lock_off.png"))
 		x, y, w, h = skin.parameters.get("FileListMultiLock",(2, 0, 25, 25))
 		res.append((eListboxPythonMultiContent.TYPE_PIXMAP_ALPHABLEND, x, y, w, h, icon))
 	return res

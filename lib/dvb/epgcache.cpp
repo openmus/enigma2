@@ -168,9 +168,8 @@ eventData::eventData(const eit_event_struct* e, int size, int _type, int tsidoni
 
 					//convert our strings to UTF8
 					std::string eventNameUTF8 = convertDVBUTF8((const unsigned char*)&descr[6], eventNameLen, table, tsidonid);
-					std::string textUTF8 = convertDVBUTF8((const unsigned char*)&descr[7 + eventNameLen], eventTextLen, table, tsidonid);
+					std::string text((const char*)&descr[7 + eventNameLen], eventTextLen);
 					unsigned int eventNameUTF8len = eventNameUTF8.length();
-					unsigned int textUTF8len = textUTF8.length();
 
 					//Rebuild the short event descriptor with UTF-8 strings
 
@@ -212,11 +211,10 @@ eventData::eventData(const eit_event_struct* e, int size, int _type, int tsidoni
 						*pdescr++ = title_crc;
 					}
 
-					//save the text
-					if( textUTF8len > 0 ) //only store the data if there is something to store
+					//save text with original encoding
+					if( eventTextLen > 0 ) //only store the data if there is something to store
 					{
-						textUTF8len = truncateUTF8(textUTF8, 255 - 6);
-						int text_len = 6 + textUTF8len;
+						int text_len = 6 + eventTextLen;
 						uint8_t *text_data = new uint8_t[text_len + 2];
 						text_data[0] = SHORT_EVENT_DESCRIPTOR;
 						text_data[1] = text_len;
@@ -224,9 +222,8 @@ eventData::eventData(const eit_event_struct* e, int size, int _type, int tsidoni
 						text_data[3] = descr[3];
 						text_data[4] = descr[4];
 						text_data[5] = 0;
-						text_data[6] = textUTF8len + 1; //identify text as UTF-8
-						text_data[7] = 0x15; //identify text as UTF-8
-						memcpy(&text_data[8], textUTF8.data(), textUTF8len);
+						text_data[6] = eventTextLen;
+						memcpy(&text_data[7], text.data(), eventTextLen);
 
 						text_len += 2; //add 2 the length to include the 2 bytes in the header
 						uint32_t text_crc = calculate_crc_hash(text_data, text_len);
@@ -300,6 +297,10 @@ eventData::~eventData()
 		if ( it != descriptors.end() )
 		{
 			DescriptorPair &p = it->second;
+			if (p.reference_count == 0)
+			{
+				eDebug("[eEPGCache] Eventdata reference count is already zero!");
+			}
 			if (!--p.reference_count) // no more used descriptor
 			{
 				CacheSize -= it->second.data[1];
@@ -335,6 +336,12 @@ void eventData::load(FILE *f)
 		p.data[0] = header[0];
 		p.data[1] = header[1];
 		ret = fread(p.data+2, bytes-2, 1, f);
+		// make sure we are not leaking memory
+		DescriptorMap::iterator it = descriptors.find(id);
+		if (it != descriptors.end())
+		{
+			delete [] it->second.data; // free descriptor memory
+		}
 		descriptors[id] = p;
 		--size;
 	}
@@ -380,7 +387,7 @@ static pthread_mutex_t channel_map_lock =
 DEFINE_REF(eEPGCache)
 
 eEPGCache::eEPGCache()
-	:messages(this,1), cleanTimer(eTimer::create(this)), m_running(false)
+	:messages(this,1), cleanTimer(eTimer::create(this)), m_running(false), m_timeQueryRef(nullptr)
 {
 	eDebug("[eEPGCache] Initialized EPGCache (wait for setCacheFile call now)");
 
@@ -417,7 +424,7 @@ eEPGCache::eEPGCache()
 				op += 3600;
 			if (eitpid != 0)
 			{
-				sprintf (optsidonid, "%x%04x%04x", op, tsid, onid);
+				snprintf(optsidonid, sizeof(optsidonid) - 1, "%x%04x%04x", op, tsid, onid);
 				customeitpids[std::string(optsidonid)] = eitpid;
 				eDebug("[eEPGCache] %s --> %#x", optsidonid, eitpid);
 			}
@@ -646,6 +653,26 @@ void eEPGCache::DVBChannelRunning(iDVBChannel *chan)
 							return;
 						}
 					}
+				}
+#endif
+#ifdef ENABLE_OPENTV
+				res = demux->createSectionReader( this, data.m_OPENTV_ChannelsReader );
+				if ( res )
+				{
+					eDebug("[eEPGCache] couldnt initialize OpenTV channels reader!!");
+					return;
+				}
+				res = demux->createSectionReader( this, data.m_OPENTV_TitlesReader );
+				if ( res )
+				{
+					eDebug("[eEPGCache] couldnt initialize OpenTV titles reader!!");
+					return;
+				}
+				res = demux->createSectionReader( this, data.m_OPENTV_SummariesReader );
+				if ( res )
+				{
+					eDebug("[eEPGCache] couldnt initialize OpenTV summaries reader!!");
+					return;
 				}
 #endif
 				if (m_running)
@@ -1002,18 +1029,18 @@ next:
 		if ( servicemap.byEvent.size() != servicemap.byTime.size() )
 		{
 			{
-				CFile f("/hdd/event_map.txt", "w+");
+				CFile f("/media/hdd/event_map.txt", "w+");
 				int i = 0;
-				for (eventMap::iterator it(servicemap.first.begin()); it != servicemap.first.end(); ++it )
+				for (eventMap::iterator it(servicemap.byEvent.begin()); it != servicemap.byEvent.end(); ++it )
 				{
 					fprintf(f, "%d(key %d) -> time %d, event_id %d, data %p\n",
 					i++, (int)it->first, (int)it->second->getStartTime(), (int)it->second->getEventID(), it->second );
 				}
 			}
 			{
-				CFile f("/hdd/time_map.txt", "w+");
+				CFile f("/media/hdd/time_map.txt", "w+");
 				int i = 0;
-				for (timeMap::iterator it(servicemap.second.begin()); it != servicemap.second.end(); ++it )
+				for (timeMap::iterator it(servicemap.byTime.begin()); it != servicemap.byTime.end(); ++it )
 				{
 					fprintf(f, "%d(key %d) -> time %d, event_id %d, data %p\n",
 						i++, (int)it->first, (int)it->second->getStartTime(), (int)it->second->getEventID(), it->second );
@@ -1021,7 +1048,7 @@ next:
 			}
 			eFatal("[eEPGCache] (1)map sizes not equal :( sid %04x tsid %04x onid %04x size %zu size2 %zu",
 				service.sid, service.tsid, service.onid,
-				servicemap.first.size(), servicemap.second.size() );
+				servicemap.byEvent.size(), servicemap.byTime.size() );
 		}
 #endif
 		ptr += eit_event_size;
@@ -1029,12 +1056,35 @@ next:
 	}
 }
 
-void eEPGCache::flushEPG(const uniqueEPGKey & s)
+// epg cache needs to be locked(cache_lock) before calling the procedure
+void eEPGCache::clearCompleteEPGCache()
+{
+	// cache_lock needs to be set in calling procedure!
+	for (eventCache::iterator it(eventDB.begin()); it != eventDB.end(); ++it)
+	{
+		eventMap &evMap = it->second.byEvent;
+		timeMap &tmMap = it->second.byTime;
+		for (eventMap::iterator i = evMap.begin(); i != evMap.end(); ++i)
+			delete i->second;
+		evMap.clear();
+		tmMap.clear();
+	}
+	eventDB.clear();
+#ifdef ENABLE_PRIVATE_EPG
+	content_time_tables.clear();
+#endif
+	channelLastUpdated.clear();
+	singleLock m(channel_map_lock);
+	for (ChannelMap::const_iterator it(m_knownChannels.begin()); it != m_knownChannels.end(); ++it)
+		it->second->startEPG();
+}
+
+void eEPGCache::flushEPG(const uniqueEPGKey & s, bool lock) // lock only affects complete flush
 {
 	eDebug("[eEPGCache] flushEPG %d", (int)(bool)s);
-	singleLock l(cache_lock);
 	if (s)  // clear only this service
 	{
+		singleLock l(cache_lock);
 		eventCache::iterator it = eventDB.find(s);
 		if ( it != eventDB.end() )
 		{
@@ -1060,24 +1110,13 @@ void eEPGCache::flushEPG(const uniqueEPGKey & s)
 	}
 	else // clear complete EPG Cache
 	{
-		for (eventCache::iterator it(eventDB.begin());
-			it != eventDB.end(); ++it)
+		if (lock)
 		{
-			eventMap &evMap = it->second.byEvent;
-			timeMap &tmMap = it->second.byTime;
-			for (eventMap::iterator i = evMap.begin(); i != evMap.end(); ++i)
-				delete i->second;
-			evMap.clear();
-			tmMap.clear();
+			singleLock l(cache_lock);
+			clearCompleteEPGCache();
 		}
-		eventDB.clear();
-#ifdef ENABLE_PRIVATE_EPG
-		content_time_tables.clear();
-#endif
-		channelLastUpdated.clear();
-		singleLock m(channel_map_lock);
-		for (ChannelMap::const_iterator it(m_knownChannels.begin()); it != m_knownChannels.end(); ++it)
-			it->second->startEPG();
+		else
+			clearCompleteEPGCache();
 	}
 }
 
@@ -1300,7 +1339,7 @@ static const char* EPGDAT_IN_FLASH = "/epg.dat";
 void eEPGCache::load()
 {
 	if (m_filename.empty())
-		m_filename = "/hdd/epg.dat";
+		m_filename = "/media/hdd/epg.dat";
 	const char* EPGDAT = m_filename.c_str();
 	std::string filenamex = m_filename + ".loading";
 	const char* EPGDATX = filenamex.c_str();
@@ -1340,6 +1379,10 @@ void eEPGCache::load()
 		if ( !memcmp( text1, "ENIGMA_EPG_V7", 13) )
 		{
 			singleLock s(cache_lock);
+			if (eventDB.size() > 0)
+			{
+				clearCompleteEPGCache();
+			}
 			ret = fread( &size, sizeof(int), 1, f);
 			eventDB.rehash(size); /* Reserve buckets in advance */
 			while(size--)
@@ -1426,6 +1469,8 @@ void eEPGCache::load()
 
 void eEPGCache::save()
 {
+	if (!load_epg)
+		return;
 	const char* EPGDAT = m_filename.c_str();
 	if (eventData::isCacheCorrupt)
 		return;
@@ -1468,13 +1513,15 @@ void eEPGCache::save()
 	tmp*=s.f_bsize;
 	if ( tmp < (eventData::CacheSize*12)/10 ) // 20% overhead
 	{
-		eDebug("[eEPGCache] not enough free space at '%s' %zu bytes available but %u needed", buf, tmp, (eventData::CacheSize*12)/10);
+		eDebug("[eEPGCache] not enough free space at '%s' %jd bytes available but %u needed", buf, (intmax_t)tmp, (eventData::CacheSize*12)/10);
 		free(buf);
 		fclose(f);
 		return;
 	}
 
 	free(buf);
+
+	singleLock lockcache(cache_lock);
 
 	int cnt=0;
 	unsigned int magic = 0x98765432;
@@ -1545,6 +1592,9 @@ eEPGCache::channel_data::channel_data(eEPGCache *ml)
 #ifdef ENABLE_MHW_EPG
 	,m_MHWTimeoutTimer(eTimer::create(ml))
 #endif
+#ifdef ENABLE_OPENTV
+	,m_OPENTV_Timer(eTimer::create(ml))
+#endif
 {
 #ifdef ENABLE_MHW_EPG
 	CONNECT(m_MHWTimeoutTimer->timeout, eEPGCache::channel_data::MHWTimeout);
@@ -1553,6 +1603,9 @@ eEPGCache::channel_data::channel_data(eEPGCache *ml)
 	CONNECT(abortTimer->timeout, eEPGCache::channel_data::abortNonAvail);
 #ifdef ENABLE_PRIVATE_EPG
 	CONNECT(startPrivateTimer->timeout, eEPGCache::channel_data::startPrivateReader);
+#endif
+#ifdef ENABLE_OPENTV
+	CONNECT(m_OPENTV_Timer->timeout, eEPGCache::channel_data::cleanupOPENTV);
 #endif
 	pthread_mutex_init(&channel_active, 0);
 }
@@ -1575,6 +1628,9 @@ void eEPGCache::channel_data::finishEPG()
 #ifdef ENABLE_FREESAT
 		cleanupFreeSat();
 #endif
+#ifdef ENABLE_OPENTV
+		cleanupOPENTV();
+#endif
 		singleLock l(cache_lock);
 		cache->channelLastUpdated[channel->getChannelID()] = ::time(0);
 	}
@@ -1596,12 +1652,15 @@ void eEPGCache::channel_data::startEPG()
 #ifdef ENABLE_FREESAT
 		cleanupFreeSat();
 #endif
-
+#ifdef ENABLE_OPENTV
+		huffman_dictionary_read = false;
+		cleanupOPENTV();
+#endif
 	eDVBSectionFilterMask mask;
 	memset(&mask, 0, sizeof(mask));
 
 #ifdef ENABLE_MHW_EPG
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::MHW)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::MHW && m_MHWReader)
 	{
 		mask.pid = 0xD3;
 		mask.data[0] = 0x91;
@@ -1626,7 +1685,7 @@ void eEPGCache::channel_data::startEPG()
 	}
 #endif
 #ifdef ENABLE_FREESAT
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::FREESAT_SCHEDULE_OTHER)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::FREESAT_SCHEDULE_OTHER && m_FreeSatScheduleOtherReader)
 	{
 		mask.pid = 3842;
 		mask.flags = eDVBSectionFilterMask::rfCRC;
@@ -1664,7 +1723,7 @@ void eEPGCache::channel_data::startEPG()
 		eDebug("[eEPGCache] Using non-standard pid %#x", mask.pid);
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NOWNEXT)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NOWNEXT && m_NowNextReader)
 	{
 		mask.data[0] = 0x4E;
 		mask.mask[0] = 0xFE;
@@ -1673,7 +1732,7 @@ void eEPGCache::channel_data::startEPG()
 		isRunning |= NOWNEXT;
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::SCHEDULE)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::SCHEDULE && m_ScheduleReader)
 	{
 		mask.data[0] = 0x50;
 		mask.mask[0] = 0xF0;
@@ -1682,7 +1741,7 @@ void eEPGCache::channel_data::startEPG()
 		isRunning |= SCHEDULE;
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::SCHEDULE_OTHER)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::SCHEDULE_OTHER && m_ScheduleOtherReader)
 	{
 		mask.data[0] = 0x60;
 		mask.mask[0] = 0xF0;
@@ -1692,7 +1751,7 @@ void eEPGCache::channel_data::startEPG()
 	}
 
 #ifdef ENABLE_VIRGIN
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIRGIN_NOWNEXT)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIRGIN_NOWNEXT && m_VirginNowNextReader)
 	{
 		mask.pid = 0x2bc;
 		mask.data[0] = 0x4E;
@@ -1702,7 +1761,7 @@ void eEPGCache::channel_data::startEPG()
 		isRunning |= VIRGIN_NOWNEXT;
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIRGIN_SCHEDULE)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIRGIN_SCHEDULE && m_VirginScheduleReader)
 	{
 		mask.pid = 0x2bc;
 		mask.data[0] = 0x50;
@@ -1713,7 +1772,7 @@ void eEPGCache::channel_data::startEPG()
 	}
 #endif
 #ifdef ENABLE_NETMED
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NETMED_SCHEDULE)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NETMED_SCHEDULE && m_NetmedScheduleReader)
 	{
 		mask.pid = 0x1388;
 		mask.data[0] = 0x50;
@@ -1723,7 +1782,7 @@ void eEPGCache::channel_data::startEPG()
 		isRunning |= NETMED_SCHEDULE;
 	}
 
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NETMED_SCHEDULE_OTHER)
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::NETMED_SCHEDULE_OTHER && m_NetmedScheduleOtherReader)
 	{
 		mask.pid = 0x1388;
 		mask.data[0] = 0x60;
@@ -1752,7 +1811,35 @@ void eEPGCache::channel_data::startEPG()
 		isRunning |= ATSC_EIT;
 	}
 #endif
-	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIASAT)
+#ifdef ENABLE_OPENTV
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::OPENTV && m_OPENTV_ChannelsReader)
+	{
+		char dictionary[256];
+		memset(dictionary, '\0', 256);
+
+		//load correct EPG dictionary data "otv_namespace_onid_tsid.dict"
+		sprintf (dictionary, "/usr/share/enigma2/otv_%08x_%04x_%04x.dict",
+			(chid.dvbnamespace.get() >> 16) << 16, // without subnet
+			chid.original_network_id.get(),
+			chid.transport_stream_id.get());
+
+		huffman_dictionary_read = huffman_read_dictionary(dictionary);
+
+		if (huffman_dictionary_read)
+		{
+			m_OPENTV_EIT_index = m_OPENTV_crc32 = 0;
+			m_OPENTV_ChannelsReader->connectRead(sigc::mem_fun(*this, &eEPGCache::channel_data::OPENTV_ChannelsSection), m_OPENTV_ChannelsConn);
+			mask.pid = 0x11;
+			mask.data[0] = 0x4a;
+			mask.mask[0] = 0xff;
+			m_OPENTV_ChannelsReader->start(mask);
+			isRunning |= OPENTV;
+		}
+		else
+			eDebug("[eEPGCache] abort non avail OpenTV EIT reading");
+	}
+#endif
+	if (eEPGCache::getInstance()->getEpgSources() & eEPGCache::VIASAT && m_ViasatReader)
 	{
 		mask.pid = 0x39;
 
@@ -1762,8 +1849,12 @@ void eEPGCache::channel_data::startEPG()
 		m_ViasatReader->start(mask);
 		isRunning |= VIASAT;
 	}
-
-	abortTimer->start(7000,true);
+#ifdef ENABLE_OPENTV
+	if ( isRunning & OPENTV )
+		abortTimer->start(27000,true);
+	else
+#endif
+		abortTimer->start(7000,true);
 }
 
 #ifdef ENABLE_ATSC
@@ -1919,6 +2010,279 @@ void eEPGCache::channel_data::cleanupATSC()
 	m_ATSC_VCT_map.clear();
 }
 #endif
+#ifdef ENABLE_OPENTV
+void eEPGCache::channel_data::OPENTV_checkCompletion(uint32_t data_crc)
+{
+	if (!m_OPENTV_crc32)
+	{
+		m_OPENTV_crc32 = data_crc;
+	}
+	else if (m_OPENTV_crc32 == data_crc)
+	{
+		m_OPENTV_crc32 = 0;
+	}
+
+	eDVBSectionFilterMask mask;
+	memset(&mask, 0, sizeof(mask));
+
+	if ((m_OPENTV_ChannelsConn && (m_OPENTV_EIT_index > 0xff)) || (m_OPENTV_ChannelsConn && !m_OPENTV_crc32))
+	{
+		eDebug("[eEPGCache] OpenTV channels, found=%d%s", (int)m_OPENTV_channels_map.size(), m_OPENTV_crc32 ? ", crc32 incomplete" : "");
+		m_OPENTV_ChannelsReader->stop();
+		m_OPENTV_ChannelsConn = NULL;
+		m_OPENTV_EIT_index = m_OPENTV_crc32 = 0;
+		m_OPENTV_Timer->start(200000, true);
+		m_OPENTV_TitlesReader->connectRead(sigc::mem_fun(*this, &eEPGCache::channel_data::OPENTV_TitlesSection), m_OPENTV_TitlesConn);
+		mask = {};
+		mask.pid = m_OPENTV_pid = 0x30;
+		mask.data[0] = 0xa0;
+		mask.mask[0] = 0xfc;
+		mask.flags = eDVBSectionFilterMask::rfCRC;
+		m_OPENTV_TitlesReader->start(mask);
+	}
+	else if ((m_OPENTV_TitlesConn && (m_OPENTV_EIT_index > 0xfff)) || (m_OPENTV_TitlesConn && !m_OPENTV_crc32))
+	{
+		m_OPENTV_TitlesReader->stop();
+		m_OPENTV_TitlesConn = NULL;
+		m_OPENTV_EIT_index = m_OPENTV_crc32 = 0;
+		m_OPENTV_pid += 0x10;
+
+		if (m_OPENTV_pid < 0x48)
+		{
+			eDebug("[eEPGCache] OpenTV titles %d stored=%d%s", (int)m_OPENTV_EIT_map.size(), (int)m_OPENTV_descriptors_map.size(), m_OPENTV_crc32 ? ", crc32 incomplete" : "");
+			m_OPENTV_SummariesReader->connectRead(sigc::mem_fun(*this, &eEPGCache::channel_data::OPENTV_SummariesSection), m_OPENTV_SummariesConn);
+			mask = {};
+			mask.pid = m_OPENTV_pid;
+			mask.data[0] = 0xa8;
+			mask.mask[0] = 0xfc;
+			mask.flags = eDVBSectionFilterMask::rfCRC;
+			m_OPENTV_SummariesReader->start(mask);
+		}
+	}
+	else if ((m_OPENTV_SummariesConn && (m_OPENTV_EIT_index > 0xfff)) || (m_OPENTV_SummariesConn && !m_OPENTV_crc32))
+	{
+		m_OPENTV_SummariesReader->stop();
+		m_OPENTV_SummariesConn = NULL;
+		m_OPENTV_EIT_index = m_OPENTV_crc32 = 0;
+		m_OPENTV_pid -= 0x10;
+
+		//cache remaining uncached events for which the provider only sends title with no summary data.. off air/overnight!
+		eDebug("[eEPGCache] OpenTV summaries, uncached=%d%s", (int)m_OPENTV_EIT_map.size(), m_OPENTV_crc32 ? ", crc32 incomplete" : "");
+
+		for (std::map<uint32_t, struct opentv_event>::const_iterator it = m_OPENTV_EIT_map.begin(); it != m_OPENTV_EIT_map.end(); ++it)
+		{
+			int channelid = (it->first >> 16) & 0xffff;
+
+			if (m_OPENTV_channels_map.find(channelid) != m_OPENTV_channels_map.end())
+			{
+				std::vector<int> sids;
+				std::vector<eDVBChannelID> chids;
+				eDVBChannelID chid = channel->getChannelID();
+				chid.transport_stream_id = m_OPENTV_channels_map[channelid].transportStreamId;
+				chid.original_network_id = m_OPENTV_channels_map[channelid].originalNetworkId;
+				chids.push_back(chid);
+				sids.push_back(m_OPENTV_channels_map[channelid].serviceId);
+				cache->submitEventData(sids, chids, it->second.startTime, it->second.duration, m_OPENTV_descriptors_map[it->second.title_crc].c_str(), "", "", 0, eEPGCache::OPENTV);
+			}
+		}
+		m_OPENTV_descriptors_map.clear();
+		m_OPENTV_EIT_map.clear();
+
+		if (++m_OPENTV_pid < 0x38)
+		{
+			m_OPENTV_TitlesReader->connectRead(sigc::mem_fun(*this, &eEPGCache::channel_data::OPENTV_TitlesSection), m_OPENTV_TitlesConn);
+			mask = {};
+			mask.pid = m_OPENTV_pid;
+			mask.data[0] = 0xa0;
+			mask.mask[0] = 0xfc;
+			mask.flags = eDVBSectionFilterMask::rfCRC;
+			m_OPENTV_TitlesReader->start(mask);
+		}
+		else
+			eDebug("[eEPGCache] OpenTV finishing, uncached=%d", (int)m_OPENTV_EIT_map.size());
+	}
+	else
+		m_OPENTV_EIT_index++;
+
+	if (!m_OPENTV_ChannelsConn && !m_OPENTV_TitlesConn && !m_OPENTV_SummariesConn)
+	{
+		eDebug("[eEPGCache] OpenTV EIT parsing completed");
+		isRunning &= ~OPENTV;
+
+		if (!isRunning)
+			finishEPG();
+		else
+			cleanupOPENTV();
+	}
+}
+
+void eEPGCache::channel_data::OPENTV_ChannelsSection(const uint8_t *d)
+{
+	OpenTvChannelSection otcs(d);
+
+	for (OpenTvChannelListConstIterator channel = otcs.getChannels()->begin(); channel != otcs.getChannels()->end(); ++channel)
+	{
+		if (m_OPENTV_channels_map.find((*channel)->getChannelId()) == m_OPENTV_channels_map.end())
+		{
+			struct opentv_channel otc;
+			otc.originalNetworkId = (*channel)->getOriginalNetworkId();
+			otc.transportStreamId = (*channel)->getTransportStreamId();
+			otc.serviceId = (*channel)->getServiceId();
+			otc.serviceType = (*channel)->getServiceType();
+			m_OPENTV_channels_map[(*channel)->getChannelId()] = otc;
+		}
+	}
+	OPENTV_checkCompletion(otcs.getCrc32());
+}
+
+void eEPGCache::channel_data::OPENTV_TitlesSection(const uint8_t *d)
+{
+	OpenTvTitleSection otts(d);
+
+	for (OpenTvTitleListConstIterator title = otts.getTitles()->begin(); title != otts.getTitles()->end(); ++title)
+	{
+		uint32_t etm = ((otts.getTableIdExtension() & 0xffff) << 16) | ((*title)->getEventId() & 0xffff);
+
+		if (m_OPENTV_EIT_map.find(etm) == m_OPENTV_EIT_map.end())
+		{
+			struct opentv_event ote;
+			ote.eventId = (*title)->getEventId();
+			ote.startTime = (*title)->getStartTime();
+			ote.duration = (*title)->getDuration();
+			ote.title_crc = (*title)->getCRC32();
+			m_OPENTV_EIT_map[etm] = ote;
+
+			if (m_OPENTV_descriptors_map.find(ote.title_crc) == m_OPENTV_descriptors_map.end())
+				m_OPENTV_descriptors_map[ote.title_crc] = (*title)->getTitle();
+		}
+	}
+
+	OPENTV_checkCompletion(otts.getCrc32());
+}
+
+void eEPGCache::channel_data::OPENTV_SummariesSection(const uint8_t *d)
+{
+	OpenTvSummarySection otss(d);
+
+	int channelid = otss.getTableIdExtension();
+
+	if (m_OPENTV_channels_map.find(channelid) != m_OPENTV_channels_map.end())
+	{
+		for (OpenTvSummaryListConstIterator summary = otss.getSummaries()->begin(); summary != otss.getSummaries()->end(); ++summary)
+		{
+			uint32_t otce = ((channelid & 0xffff) << 16) | ((*summary)->getEventId() & 0xffff);
+
+			if (m_OPENTV_EIT_map.find(otce) != m_OPENTV_EIT_map.end())
+			{
+				struct opentv_event ote = m_OPENTV_EIT_map[otce];
+
+				//cache events with matching title and summary eventId on the fly!
+				if (m_OPENTV_descriptors_map.find(ote.title_crc) != m_OPENTV_descriptors_map.end())
+				{
+					std::vector<int> sids;
+					std::vector<eDVBChannelID> chids;
+					eDVBChannelID chid = channel->getChannelID();
+					chid.transport_stream_id = m_OPENTV_channels_map[channelid].transportStreamId;
+					chid.original_network_id = m_OPENTV_channels_map[channelid].originalNetworkId;
+					chids.push_back(chid);
+					sids.push_back(m_OPENTV_channels_map[channelid].serviceId);
+
+					// hack to fix split titles
+					std::string sTitle = m_OPENTV_descriptors_map[ote.title_crc];
+					std::string sSummary = (*summary)->getSummary();
+
+					if (sTitle.length() > 3 && sSummary.length() > 3)
+					{
+						// check if the title is split
+						if (sTitle.substr(sTitle.length() - 3) == "..." && sSummary.substr(0, 3) == "...")
+						{
+							// find the end of the title in the sumarry
+							std::size_t found = sSummary.find_first_of(".:!?", 4);
+
+							if (found < sSummary.length())
+							{
+								std::string sTmpTitle;
+								std::string sTmpSummary;
+
+								// strip off the ellipsis and any leading/trailing space
+								if (sTitle.substr(sTitle.length() - 4, 1) == " ")
+								{
+									sTmpTitle  = sTitle.substr(0, sTitle.length() - 4);
+								}
+								else
+								{
+									sTmpTitle = sTitle.substr(0, sTitle.length() - 3);
+								}
+
+								if (sSummary.substr(3, 1) == " ")
+								{
+									sTmpSummary  = sSummary.substr(4);
+								}
+								else
+								{
+									sTmpSummary = sSummary.substr(3);
+								}
+
+								// construct the new title and summary
+								found = sTmpSummary.find_first_of(".:!?");
+								if (found < sTmpSummary.length())
+								{
+									sTitle = sTmpTitle + " " + sTmpSummary.substr(0, found);
+									if (sTmpSummary.length() - found > 2)
+									{
+										sSummary = sTmpSummary.substr(found + 2);
+									}
+									else
+									{
+										sSummary = "";
+									}
+								}
+								else
+								{
+									// shouldn't happen, but you never know...
+									sTitle + sTmpTitle;
+									sSummary = sTmpSummary;
+								}
+							}
+						}
+					}
+					cache->submitEventData(sids, chids, ote.startTime, ote.duration, sTitle.c_str(), "", sSummary.c_str(), 0, eEPGCache::OPENTV);
+				}
+				m_OPENTV_EIT_map.erase(otce);
+			}
+		}
+	}
+	haveData |= OPENTV;
+
+	OPENTV_checkCompletion(otss.getCrc32());
+}
+
+void eEPGCache::channel_data::cleanupOPENTV()
+{
+	m_OPENTV_Timer->stop();
+	if (m_OPENTV_ChannelsReader)
+		m_OPENTV_ChannelsReader->stop();
+	if (m_OPENTV_TitlesReader)
+		m_OPENTV_TitlesReader->stop();
+	if (m_OPENTV_SummariesReader)
+		m_OPENTV_SummariesReader->stop();
+	m_OPENTV_ChannelsConn = NULL;
+	m_OPENTV_TitlesConn = NULL;
+	m_OPENTV_SummariesConn = NULL;
+	m_OPENTV_channels_map.clear();
+	m_OPENTV_descriptors_map.clear();
+	m_OPENTV_EIT_map.clear();
+
+	if (huffman_dictionary_read)
+	{
+		huffman_free_dictionary();
+		huffman_dictionary_read = false;
+	}
+
+	if (isRunning & OPENTV)
+		isRunning &= ~OPENTV;
+}
+#endif
 
 void eEPGCache::channel_data::abortNonAvail()
 {
@@ -2015,6 +2379,14 @@ void eEPGCache::channel_data::abortNonAvail()
 			cleanupATSC();
 		}
 #endif
+#ifdef ENABLE_OPENTV
+		if (!(haveData & OPENTV) && (isRunning & OPENTV))
+		{
+			eDebug("[eEPGCache] abort non avail OpenTV EIT reading");
+			isRunning &= ~OPENTV;
+			cleanupOPENTV();
+		}
+#endif
 		if ( isRunning & VIASAT )
 			abortTimer->start(300000, true);
 		else if ( isRunning )
@@ -2032,6 +2404,9 @@ void eEPGCache::channel_data::abortNonAvail()
 #endif
 #ifdef ENABLE_FREESAT
 			cleanupFreeSat();
+#endif
+#ifdef ENABLE_OPENTV
+			cleanupOPENTV();
 #endif
 		}
 	}
@@ -2150,6 +2525,13 @@ void eEPGCache::channel_data::abortEPG()
 		{
 			isRunning &= ~ATSC_EIT;
 			cleanupATSC();
+		}
+#endif
+#ifdef ENABLE_OPENTV
+		if (isRunning & OPENTV)
+		{
+			isRunning &= ~OPENTV;
+			cleanupOPENTV();
 		}
 #endif
 	}
@@ -2568,56 +2950,136 @@ RESULT eEPGCache::lookupEventId(const eServiceReference &service, int event_id, 
 RESULT eEPGCache::startTimeQuery(const eServiceReference &service, time_t begin, int minutes)
 {
 	singleLock s(cache_lock);
-	const eServiceReferenceDVB &ref = (const eServiceReferenceDVB&)handleGroup(service);
+
+	if (m_timeQueryRef)
+		delete m_timeQueryRef;
+	m_timeQueryRef = (eServiceReferenceDVB*)new eServiceReference(handleGroup(service));
+
 	if (begin == -1)
 		begin = ::time(0);
-	eventCache::iterator It = eventDB.find(ref);
+
+	m_timeQueryBegin = begin;
+	m_timeQueryMinutes = minutes;
+	m_timeQueryCount = 0;
+
+	eventCache::iterator It = eventDB.find(*m_timeQueryRef);
 	if ( It != eventDB.end() && !It->second.byTime.empty() )
 	{
-		m_timemap_cursor = It->second.byTime.lower_bound(begin);
-		if ( m_timemap_cursor != It->second.byTime.end() )
+		timeMap::iterator timemap_it = It->second.byTime.lower_bound(m_timeQueryBegin);
+		if ( timemap_it != It->second.byTime.end() )
 		{
-			if ( m_timemap_cursor->first != begin )
+			if ( timemap_it->first != m_timeQueryBegin )
 			{
-				timeMap::iterator x = m_timemap_cursor;
+				timeMap::iterator x = timemap_it;
 				--x;
 				if ( x != It->second.byTime.end() )
 				{
 					time_t start_time = x->first;
-					if ( begin > start_time && begin < (start_time+x->second->getDuration()))
-						m_timemap_cursor = x;
+					if ( m_timeQueryBegin > start_time && m_timeQueryBegin < (start_time+x->second->getDuration()))
+						timemap_it = x;
 				}
 			}
 		}
 
-		if (minutes != -1)
-			m_timemap_end = It->second.byTime.lower_bound(begin+minutes*60);
+		timeMap::iterator timemap_end;
+		if (m_timeQueryMinutes != -1)
+			timemap_end = It->second.byTime.lower_bound(m_timeQueryBegin + m_timeQueryMinutes * 60);
 		else
-			m_timemap_end = It->second.byTime.end();
+			timemap_end = It->second.byTime.end();
 
-		currentQueryTsidOnid = (ref.getTransportStreamID().get()<<16) | ref.getOriginalNetworkID().get();
-		return m_timemap_cursor == m_timemap_end ? -1 : 0;
+		return timemap_it == timemap_end ? -1 : 0;
 	}
 	return -1;
 }
 
 RESULT eEPGCache::getNextTimeEntry(Event *&result)
 {
-	if ( m_timemap_cursor != m_timemap_end )
+	singleLock s(cache_lock);
+	eventCache::iterator It = eventDB.find(*m_timeQueryRef);
+	if ( It != eventDB.end() && !It->second.byTime.empty() )
 	{
-		result = new Event((uint8_t*)m_timemap_cursor++->second->get());
-		return 0;
+		timeMap::iterator timemap_it = It->second.byTime.lower_bound(m_timeQueryBegin);
+		if ( timemap_it != It->second.byTime.end() )
+		{
+			if ( timemap_it->first != m_timeQueryBegin )
+			{
+				timeMap::iterator x = timemap_it;
+				--x;
+				if ( x != It->second.byTime.end() )
+				{
+					time_t start_time = x->first;
+					if ( m_timeQueryBegin > start_time && m_timeQueryBegin < (start_time+x->second->getDuration()))
+						timemap_it = x;
+				}
+			}
+		}
+
+		timeMap::iterator timemap_end;
+		if (m_timeQueryMinutes != -1)
+			timemap_end = It->second.byTime.lower_bound(m_timeQueryBegin + m_timeQueryMinutes * 60);
+		else
+			timemap_end = It->second.byTime.end();
+
+		for (int i = 0; i < m_timeQueryCount; i++)
+		{
+			if ( timemap_it == timemap_end )
+				return -1;
+			else
+				timemap_it++;
+		}
+		if ( timemap_it != timemap_end )
+		{
+			result = new Event((uint8_t*)timemap_it->second->get());
+			m_timeQueryCount++;
+			return 0;
+		}
 	}
 	return -1;
 }
 
 RESULT eEPGCache::getNextTimeEntry(ePtr<eServiceEvent> &result)
 {
-	if ( m_timemap_cursor != m_timemap_end )
+	singleLock s(cache_lock);
+	eventCache::iterator It = eventDB.find(*m_timeQueryRef);
+	if ( It != eventDB.end() && !It->second.byTime.empty() )
 	{
-		Event ev((uint8_t*)m_timemap_cursor++->second->get());
-		result = new eServiceEvent();
-		return result->parseFrom(&ev, currentQueryTsidOnid);
+		timeMap::iterator timemap_it = It->second.byTime.lower_bound(m_timeQueryBegin);
+		if ( timemap_it != It->second.byTime.end() )
+		{
+			if ( timemap_it->first != m_timeQueryBegin )
+			{
+				timeMap::iterator x = timemap_it;
+				--x;
+				if ( x != It->second.byTime.end() )
+				{
+					time_t start_time = x->first;
+					if ( m_timeQueryBegin > start_time && m_timeQueryBegin < (start_time+x->second->getDuration()))
+						timemap_it = x;
+				}
+			}
+		}
+
+		timeMap::iterator timemap_end;
+		if (m_timeQueryMinutes != -1)
+			timemap_end = It->second.byTime.lower_bound(m_timeQueryBegin + m_timeQueryMinutes * 60);
+		else
+			timemap_end = It->second.byTime.end();
+
+		for (int i = 0; i < m_timeQueryCount; i++)
+		{
+			if ( timemap_it == timemap_end )
+				return -1;
+			else
+				timemap_it++;
+		}
+		if ( timemap_it != timemap_end )
+		{
+			Event ev((uint8_t*)timemap_it->second->get());
+			result = new eServiceEvent();
+			int currentQueryTsidOnid = (m_timeQueryRef->getTransportStreamID().get()<<16) | m_timeQueryRef->getOriginalNetworkID().get();
+			m_timeQueryCount++;
+			return result->parseFrom(&ev, currentQueryTsidOnid);
+		}
 	}
 	return -1;
 }
@@ -2916,15 +3378,12 @@ PyObject *eEPGCache::lookupEvent(ePyObject list, ePyObject convertFunc)
 			}
 			if (minutes)
 			{
-				singleLock s(cache_lock);
 				if (!startTimeQuery(ref, stime, minutes))
 				{
-					while ( m_timemap_cursor != m_timemap_end )
+					ePtr<eServiceEvent> evt;
+					while ( getNextTimeEntry(evt) != -1 )
 					{
-						Event ev((uint8_t*)m_timemap_cursor++->second->get());
-						eServiceEvent evt;
-						evt.parseFrom(&ev, currentQueryTsidOnid);
-						if (handleEvent(&evt, dest_list, argstring, argcount, service, nowTime, service_name, convertFunc, convertFuncArgs))
+						if (handleEvent(evt, dest_list, argstring, argcount, service, nowTime, service_name, convertFunc, convertFuncArgs))
 							return 0;  // error
 					}
 				}
@@ -3784,6 +4243,7 @@ void eEPGCache::PMTready(eDVBServicePMTHandler *pmthandler)
 								break;
 						}
 					}
+					break;
 				case 0x05: // private
 					for (DescriptorConstIterator desc = (*es)->getDescriptors()->begin();
 						desc != (*es)->getDescriptors()->end(); ++desc)

@@ -5,6 +5,7 @@ dist_install_DATA = \
 	az.png \
 	bullet.png \
 	clock.png \
+	cutting.png \
 	default.png \
 	dish.png \
 	dish_scan.png \
@@ -14,6 +15,10 @@ dist_install_DATA = \
 	epgclock_post.png \
 	epgclock_pre.png \
 	epgclock_prepost.png \
+	expandable.png \
+	expandable-plugins.png \
+	expanded.png \
+	expanded-plugins.png \
 	faz.png \
 	folder.png \
 	fza.png \
@@ -42,6 +47,7 @@ dist_install_DATA = \
 	input_info.png \
 	input_keyboard-configured.png \
 	input_keyboard.png \
+	input_message.png \
 	input_mouse-configured.png \
 	input_mouse.png \
 	input_question.png \
@@ -49,6 +55,7 @@ dist_install_DATA = \
 	input_rcnew.png \
 	input_rcold-configured.png \
 	input_rcold.png \
+	input_warning.png \
 	lock_error.png \
 	lock_off.png \
 	lock_on.png \
@@ -72,6 +79,7 @@ dist_install_DATA = \
 	part_new.png \
 	part_unwatched.png \
 	pause.png \
+	pic_frame.png \
 	playlist.png \
 	playlistquit.png \
 	plilogo-fs8.png \
@@ -125,6 +133,8 @@ dist_install_DATA = \
 	trashcan.png \
 	unlock.png \
 	unlockBouquet.png \
+	verticalline.png \
+	verticalline-plugins.png \
 	za.png \
 	zapclock.png \
 	zapclock_add.png \

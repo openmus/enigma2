@@ -59,9 +59,9 @@ class CableScan:
 class CableScanStatus(Screen):
 	skin = """
 	<screen position="center,115" size="420,180" title="Cable Scan">
-		<widget name="frontend" pixmap="skin_default/icons/scan-c.png" position="5,5" size="64,64" transparent="1" alphatest="on" />
+		<widget name="frontend" pixmap="icons/scan-c.png" position="5,5" size="64,64" transparent="1" alphatest="on" />
 		<widget name="scan_state" position="10,120" zPosition="2" size="400,30" font="Regular;18" />
-		<widget name="scan_progress" position="10,155" size="400,15" pixmap="skin_default/progress_big.png" borderWidth="2" borderColor="#cccccc" />
+		<widget name="scan_progress" position="10,155" size="400,15" pixmap="progress_big.png" borderWidth="2" borderColor="#cccccc" />
 	</screen>"""
 
 	def __init__(self, session, scanTuner, scanNetwork, scanFrequency, scanSymbolRate, scanModulation, keepNumbers, hdList):
@@ -100,9 +100,9 @@ class CableScanStatus(Screen):
 config.plugins.CableScan = ConfigSubsection()
 config.plugins.CableScan.keepnumbering = ConfigYesNo(default = False)
 config.plugins.CableScan.hdlist = ConfigYesNo(default = False)
-config.plugins.CableScan.frequency = ConfigFloat(default = [323, 0], limits = [(50, 999),(0, 999)])
+config.plugins.CableScan.frequency = ConfigFloat(default = [474, 0], limits = [(50, 999),(0, 999)])
 config.plugins.CableScan.symbolrate = ConfigInteger(default = 6875, limits = (1, 9999))
-config.plugins.CableScan.networkid = ConfigInteger(default = 0, limits = (0, 99999))
+config.plugins.CableScan.networkid = ConfigInteger(default = 5555, limits = (0, 99999))
 config.plugins.CableScan.modulation = ConfigSelection(
 	choices =
 		[(str(eDVBFrontendParametersCable.Modulation_QAM16), "16-QAM"),
@@ -118,8 +118,8 @@ class CableScanScreen(ConfigListScreen, Screen):
 	<screen position="center,115" size="520,390" title="Cable Scan">
 		<widget name="config" position="10,10" size="500,250" scrollbarMode="showOnDemand" />
 		<widget name="introduction" position="10,265" size="500,50" font="Regular;20" halign="center" />
-		<ePixmap pixmap="skin_default/buttons/red.png" position="100,330" size="140,40" alphatest="on"/>
-		<ePixmap pixmap="skin_default/buttons/green.png" position="270,330" size="140,40" alphatest="on"/>
+		<ePixmap pixmap="buttons/red.png" position="100,330" size="140,40" alphatest="on"/>
+		<ePixmap pixmap="buttons/green.png" position="270,330" size="140,40" alphatest="on"/>
 		<widget source="key_red" render="Label" position="100,330" zPosition="1" size="135,40" font="Regular;19" halign="center" valign="center" backgroundColor="#9f1313" transparent="1"/>
 		<widget source="key_green" render="Label" position="270,330" zPosition="1" size="135,40" font="Regular;19" halign="center" valign="center" backgroundColor="#1f771f" transparent="1"/>
 	</screen>"""
@@ -243,11 +243,8 @@ class CableScanAutoScreen(CableScanScreen):
 Session = None
 CableScanAutoStartTimer = eTimer()
 
-def getNimList():
-	return [x for x in nimmanager.getNimListOfType("DVB-C") if config.Nims[x].configMode.value != "nothing"]
-
 def CableScanMain(session, **kwargs):
-		session.open(CableScanScreen, getNimList())
+		session.open(CableScanScreen, nimmanager.getEnabledNimListOfType("DVB-C"))
 
 def restartScanAutoStartTimer(reply=False):
 	if reply:
@@ -257,7 +254,7 @@ def restartScanAutoStartTimer(reply=False):
 		CableScanAutoStartTimer.startLongTimer(3600)
 
 def CableScanAuto():
-	nimlist = getNimList()
+	nimlist = nimmanager.getEnabledNimListOfType("DVB-C")
 	if nimlist:
 		if Session.nav.RecordTimer.isRecording():
 			restartScanAutoStartTimer()
@@ -285,7 +282,7 @@ def autostart(reason, **kwargs):
 		config.misc.standbyCounter.removeNotifier(standbyCountChanged)
 
 def CableScanStart(menuid, **kwargs):
-	if menuid == "scan" and getNimList():
+	if menuid == "scan" and nimmanager.getEnabledNimListOfType("DVB-C"):
 		return [(_("Cable Scan"), CableScanMain, "cablescan", None)]
 	else:
 		return []

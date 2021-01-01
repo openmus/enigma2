@@ -1,14 +1,28 @@
 # -*- coding: utf-8 -*-
-import os
-import re
-from shutil import copyfile
+
+from __future__ import division
+from __future__ import print_function
+from os import path as os_path, mkdir, rmdir, system, walk, stat as os_stat, listdir, readlink, makedirs, symlink, access, F_OK, R_OK, W_OK
 from stat import S_IMODE
+from re import compile
 from enigma import eEnv
+
+try:
+	from os import chmod
+	have_chmod = True
+except:
+	have_chmod = False
+
+try:
+	from os import utime
+	have_utime = True
+except:
+	have_utime = False
 
 SCOPE_TRANSPONDERDATA = 0
 SCOPE_SYSETC = 1
 SCOPE_FONTS = 2
-SCOPE_SKIN = 3
+SCOPE_DATADIR = 3
 SCOPE_SKIN_IMAGE = 4
 SCOPE_USERETC = 5
 SCOPE_CONFIG = 6
@@ -18,12 +32,16 @@ SCOPE_PLUGINS = 9
 SCOPE_MEDIA = 10
 SCOPE_PLAYLIST = 11
 SCOPE_CURRENT_SKIN = 12
+SCOPE_DEFAULTDIR = 13
+SCOPE_DEFAULTPARTITION = 14
+SCOPE_DEFAULTPARTITIONMOUNTDIR = 15
 SCOPE_METADIR = 16
 SCOPE_CURRENT_PLUGIN = 17
+SCOPE_SKIN = SCOPE_DATADIR
 
 PATH_CREATE = 0
 PATH_DONTCREATE = 1
-
+PATH_FALLBACK = 2
 defaultPaths = {
 		SCOPE_TRANSPONDERDATA: (eEnv.resolve("${sysconfdir}/"), PATH_DONTCREATE),
 		SCOPE_SYSETC: (eEnv.resolve("${sysconfdir}/"), PATH_DONTCREATE),
@@ -33,47 +51,52 @@ defaultPaths = {
 
 		SCOPE_LANGUAGE: (eEnv.resolve("${datadir}/enigma2/po/"), PATH_DONTCREATE),
 
-		SCOPE_SKIN: (eEnv.resolve("${datadir}/enigma2/"), PATH_DONTCREATE),
+		SCOPE_DATADIR: (eEnv.resolve("${datadir}/enigma2/"), PATH_DONTCREATE),
 		SCOPE_SKIN_IMAGE: (eEnv.resolve("${datadir}/enigma2/"), PATH_DONTCREATE),
-		SCOPE_HDD: ("/hdd/movie/", PATH_DONTCREATE),
+		SCOPE_HDD: ("/media/hdd/movie/", PATH_DONTCREATE),
 		SCOPE_MEDIA: ("/media/", PATH_DONTCREATE),
 		SCOPE_PLAYLIST: (eEnv.resolve("${sysconfdir}/enigma2/playlist/"), PATH_CREATE),
-
+		
 		SCOPE_USERETC: ("", PATH_DONTCREATE), # user home directory
-
+		
+		SCOPE_DEFAULTDIR: (eEnv.resolve("${datadir}/enigma2/defaults/"), PATH_CREATE),
+		SCOPE_DEFAULTPARTITION: ("/dev/mtdblock6", PATH_DONTCREATE),
+		SCOPE_DEFAULTPARTITIONMOUNTDIR: (eEnv.resolve("${datadir}/enigma2/dealer"), PATH_CREATE),
 		SCOPE_METADIR: (eEnv.resolve("${datadir}/meta"), PATH_CREATE),
 	}
 
+FILE_COPY = 0 # copy files from fallback dir to the basedir
+FILE_MOVE = 1 # move files
+PATH_COPY = 2 # copy the complete fallback dir to the basedir
+PATH_MOVE = 3 # move the fallback dir to the basedir (can be used for changes in paths)
+fallbackPaths = {
+		SCOPE_CONFIG: [(eEnv.resolve("${datadir}/enigma2/defaults/"), FILE_COPY)],
+		SCOPE_HDD: [("/media/hdd/movies", PATH_MOVE)]
+	}
+
 def resolveFilename(scope, base = "", path_prefix = None):
-	if base.startswith("~/"):
+	if base[0:2] == "~/":
 		# you can only use the ~/ if we have a prefix directory
 		assert path_prefix is not None
-		base = os.path.join(path_prefix, base[2:])
+		base = os_path.join(path_prefix, base[2:])
 
 	# don't resolve absolute paths
-	if base.startswith('/'):
+	if base[0:1] == '/':
 		return base
 
 	if scope == SCOPE_CURRENT_SKIN:
 		from Components.config import config
-		# allow files in the config directory to replace skin files
-		path = tmp = defaultPaths[SCOPE_CONFIG][0]
-		if base and pathExists("%s%s" % (tmp, base)):
-			return "%s%s" % (tmp, base)
-		else:
-			path = defaultPaths[SCOPE_SKIN][0]
-			pos = config.skin.primary_skin.value.rfind('/')
-			if pos != -1:
-				skinname = config.skin.primary_skin.value[:pos+1]
-				#  remove skin name from base if exist
-				if base.startswith(skinname):
-					skinname = ""
+		tmp = defaultPaths[SCOPE_SKIN]
+		pos = config.skin.primary_skin.value.rfind('/')
+		if pos != -1:
+			#if basefile is not available use default skin path as fallback
+			tmpfile = tmp[0]+config.skin.primary_skin.value[:pos+1] + base
+			if fileExists(tmpfile):
+				path = tmp[0]+config.skin.primary_skin.value[:pos+1]
 			else:
-				skinname = ""
-			for dir in ("%s%s" % (path, skinname), path, "%s%s" % (path, "skin_default/")):
-				for file in (base, os.path.basename(base)):
-					if pathExists("%s%s"% (dir, file)):
-						return "%s%s" % (dir, file)
+				path = tmp[0]
+		else:
+			path = tmp[0]
 
 	elif scope == SCOPE_CURRENT_PLUGIN:
 		tmp = defaultPaths[SCOPE_PLUGINS]
@@ -98,126 +121,104 @@ def resolveFilename(scope, base = "", path_prefix = None):
 	if flags == PATH_CREATE:
 		if not pathExists(path):
 			try:
-				os.mkdir(path)
+				mkdir(path)
 			except OSError:
-				print "resolveFilename: Couldn't create %s" % path
+				print("resolveFilename: Couldn't create %s" % path)
 				return None
 
+	fallbackPath = fallbackPaths.get(scope)
+
+	if fallbackPath and not fileExists(path + base):
+		for x in fallbackPath:
+			if x[1] == FILE_COPY:
+				if fileExists(x[0] + base):
+					system("cp " + x[0] + base + " " + path + base)
+					break
+			elif x[1] == FILE_MOVE:
+				if fileExists(x[0] + base):
+					system("mv " + x[0] + base + " " + path + base)
+					break
+			elif x[1] == PATH_COPY:
+				if pathExists(x[0]):
+					if not pathExists(defaultPaths[scope][0]):
+						mkdir(path)
+					system("cp -a " + x[0] + "* " + path)
+					break
+			elif x[1] == PATH_MOVE:
+				if pathExists(x[0]):
+					system("mv " + x[0] + " " + path)
+					break
+
+	# FIXME: we also have to handle DATADIR etc. here.
 	return path + base
+	# this is only the BASE - an extension must be added later.
 
-pathExists = os.path.exists
-isMount = os.path.ismount
+def pathExists(path):
+	return os_path.exists(path)
 
-def bestRecordingLocation(candidates):
-	path = ''
-	biggest = 0
-	for candidate in candidates:
-		try:
-			stat = os.statvfs(candidate[1])
-			# must have some free space (i.e. not read-only)
-			if stat.f_bavail:
-				# Free space counts double
-				size = (stat.f_blocks + stat.f_bavail) * stat.f_bsize
-				if size > biggest:
-					path = candidate[1]
-					biggest = size
-		except Exception, e:
-			print "[DRL]", e
-	return path
-
-def defaultRecordingLocation(candidate=None):
-	if candidate and os.path.exists(candidate):
-		return candidate
-	# First, try whatever /hdd points to, or /media/hdd
-	try:
-		path = os.path.realpath("/hdd")
-	except:
-		path = '/media/hdd'
-	if not os.path.exists(path):
-		path = ''
-		# Find the largest local disk
-		from Components import Harddisk
-		mounts = [m for m in Harddisk.getProcMounts() if m[1].startswith('/media/')]
-		# Search local devices first, use the larger one
-		path = bestRecordingLocation([m for m in mounts if m[0].startswith('/dev/')])
-		# If we haven't found a viable candidate yet, try remote mounts
-		if not path:
-			path = bestRecordingLocation(mounts)
-	if path:
-		# If there's a movie subdir, we'd probably want to use that.
-		movie = os.path.join(path, 'movie')
-		if os.path.isdir(movie):
-			path = movie
-		if not path.endswith('/'):
-			path += '/' # Bad habits die hard, old code relies on this
-	return path
-
+def isMount(path):
+	return os_path.ismount(path)
 
 def createDir(path, makeParents = False):
 	try:
 		if makeParents:
-			os.makedirs(path)
+			makedirs(path)
 		else:
-			os.mkdir(path)
+			mkdir(path)
 	except:
-		return 0
+		ret = 0
 	else:
-		return 1
+		ret = 1
+	return ret
 
 def removeDir(path):
 	try:
-		os.rmdir(path)
+		rmdir(path)
 	except:
-		return 0
+		ret = 0
 	else:
-		return 1
+		ret = 1
+	return ret
 
 def fileExists(f, mode='r'):
 	if mode == 'r':
-		acc_mode = os.R_OK
+		acc_mode = R_OK
 	elif mode == 'w':
-		acc_mode = os.W_OK
+		acc_mode = W_OK
 	else:
-		acc_mode = os.F_OK
-	return os.access(f, acc_mode)
-
-def fileCheck(f, mode='r'):
-	return fileExists(f, mode) and f
-
-def fileHas(f, content, mode='r'):
-	return fileExists(f, mode) and content in open(f, mode).read()
+		acc_mode = F_OK
+	return access(f, acc_mode)
 
 def getRecordingFilename(basename, dirname = None):
 	# filter out non-allowed characters
 	non_allowed_characters = "/.\\:*?<>|\""
 	filename = ""
-
+	
 	basename = basename.replace('\xc2\x86', '').replace('\xc2\x87', '')
-
+	
 	for c in basename:
 		if c in non_allowed_characters or ord(c) < 32:
 			c = "_"
 		filename += c
 
-	# max filename length for ext4 is 255 (minus 8 characters for .ts.meta)
-	filename = filename[:247]
-
 	if dirname is not None:
-		if not dirname.startswith('/'):
-			dirname = os.path.join(defaultRecordingLocation(), dirname)
-	else:
-		dirname = defaultRecordingLocation()
-	filename = os.path.join(dirname, filename)
+		filename = ''.join((dirname, filename))
 
-	if not os.path.isfile("%s.ts" % filename):
-		return filename
-	for i in range(1,1000):
-		newfilename = "%s_%03d" % (filename, i)
-		if not os.path.isfile("%s.eit" % newfilename):
-			copyfile("%s.eit" % filename, "%s.eit" % newfilename)
-		if not os.path.isfile("%s.ts" % newfilename):
-			break
-	return newfilename
+	while len(filename) > 240:
+		filename = filename.decode('UTF-8')
+		filename = filename[:-1]
+		filename = filename.encode('UTF-8')
+
+	i = 0
+	while True:
+		path = resolveFilename(SCOPE_HDD, filename)
+		if i > 0:
+			path += "_%03d" % i
+		try:
+			open(path + ".ts")
+			i += 1
+		except IOError:
+			return path
 
 # this is clearly a hack:
 def InitFallbackFiles():
@@ -231,8 +232,8 @@ def InitFallbackFiles():
 def crawlDirectory(directory, pattern):
 	list = []
 	if directory:
-		expression = re.compile(pattern)
-		for root, dirs, files in os.walk(directory):
+		expression = compile(pattern)
+		for root, dirs, files in walk(directory):
 			for file in files:
 				if expression.match(file) is not None:
 					list.append((root, file))
@@ -241,111 +242,73 @@ def crawlDirectory(directory, pattern):
 def copyfile(src, dst):
 	try:
 		f1 = open(src, "rb")
-		if os.path.isdir(dst):
-			dst = os.path.join(dst, os.path.basename(src))
+		if os_path.isdir(dst):
+			dst = os_path.join(dst, os_path.basename(src))
 		f2 = open(dst, "w+b")
 		while True:
 			buf = f1.read(16*1024)
 			if not buf:
 				break
 			f2.write(buf)
-		st = os.stat(src)
+		st = os_stat(src)
 		mode = S_IMODE(st.st_mode)
-		os.chmod(dst, mode)
-		os.utime(dst, (st.st_atime, st.st_mtime))
+		if have_chmod:
+			chmod(dst, mode)
+		if have_utime:
+			utime(dst, (st.st_atime, st.st_mtime))
 	except:
-		print "copy", src, "to", dst, "failed!"
+		print("copy", src, "to", dst, "failed!")
 		return -1
 	return 0
 
 def copytree(src, dst, symlinks=False):
-	names = os.listdir(src)
-	if os.path.isdir(dst):
-		dst = os.path.join(dst, os.path.basename(src))
-		if not os.path.isdir(dst):
-			os.mkdir(dst)
+	names = listdir(src)
+	if os_path.isdir(dst):
+		dst = os_path.join(dst, os_path.basename(src))
+		if not os_path.isdir(dst):
+			mkdir(dst)
 	else:
-		os.makedirs(dst)
+		makedirs(dst)
 	for name in names:
-		srcname = os.path.join(src, name)
-		dstname = os.path.join(dst, name)
+		srcname = os_path.join(src, name)
+		dstname = os_path.join(dst, name)
 		try:
-			if symlinks and os.path.islink(srcname):
-				linkto = os.readlink(srcname)
-				os.symlink(linkto, dstname)
-			elif os.path.isdir(srcname):
+			if symlinks and os_path.islink(srcname):
+				linkto = readlink(srcname)
+				symlink(linkto, dstname)
+			elif os_path.isdir(srcname):
 				copytree(srcname, dstname, symlinks)
 			else:
 				copyfile(srcname, dstname)
 		except:
-			print "dont copy srcname (no file or link or folder)"
+			print("dont copy srcname (no file or link or folder)")
 	try:
-		st = os.stat(src)
+		st = os_stat(src)
 		mode = S_IMODE(st.st_mode)
-		os.chmod(dst, mode)
-		os.utime(dst, (st.st_atime, st.st_mtime))
+		if have_chmod:
+			chmod(dst, mode)
+		if have_utime:
+			utime(dst, (st.st_atime, st.st_mtime))
 	except:
-		print "copy stats for", src, "failed!"
-
-# Renames files or if source and destination are on different devices moves them in background
-# input list of (source, destination)
-def moveFiles(fileList):
-	movedList = []
-	try:
-		try:
-			for item in fileList:
-				os.rename(item[0], item[1])
-				movedList.append(item)
-		except OSError, e:
-			if e.errno == 18:
-				print "[Directories] cannot rename across devices, trying slow move"
-				import Screens.CopyFiles
-				Screens.CopyFiles.moveFiles(fileList, item[0])
-				print "[Directories] Moving in background..."
-			else:
-				raise
-	except Exception, e:
-		print "[Directories] Failed move:", e
-		for item in movedList:
-			try:
-				os.rename(item[1], item[0])
-			except:
-				print "[Directories] Failed to undo move:", item
-				raise
+		print("copy stats for", src, "failed!")
 
 def getSize(path, pattern=".*"):
 	path_size = 0
-	if os.path.isdir(path):
+	if os_path.isdir(path):
 		files = crawlDirectory(path, pattern)
 		for file in files:
-			filepath = os.path.join(file[0], file[1])
-			path_size += os.path.getsize(filepath)
-	elif os.path.isfile(path):
-		path_size = os.path.getsize(path)
+			filepath = os_path.join(file[0], file[1])
+			path_size += os_path.getsize(filepath)
+	elif os_path.isfile(path):
+		path_size = os_path.getsize(path)
 	return path_size
 
-def lsof():
-	lsof = []
-	for pid in os.listdir('/proc'):
-		if pid.isdigit():
-			try:
-				prog = os.readlink(os.path.join('/proc', pid, 'exe'))
-				dir = os.path.join('/proc', pid, 'fd')
-				for file in [os.path.join(dir, file) for file in os.listdir(dir)]:
-					lsof.append((pid, prog, os.readlink(file)))
-			except:
-				pass
-	return lsof
-
-def getExtension(file):
-	filename, file_extension = os.path.splitext(file)
-	return file_extension
-
-def mediafilesInUse(session):
-	from Components.MovieList import KNOWN_EXTENSIONS
-	files = [x[2] for x in lsof() if getExtension(x[2]) in KNOWN_EXTENSIONS]
-	service = session.nav.getCurrentlyPlayingServiceOrGroup()
-	filename = service and service.getPath()
-	if filename and "://" in filename: #when path is a stream ignore it
-		filename = None
-	return set([file for file in files if not(filename and file.startswith(filename) and files.count(filename) < 2)])
+def prettySize(size):
+	suffixes = [("B",2**10), ("K",2**20), ("M",2**30), ("G",2**40), ("T",2**50)]
+	for suf, lim in suffixes:
+		if size > lim:
+			continue
+		else:
+			if (suf, lim) == suffixes[0]:
+				return size.__str__()+suf
+			return "%.2f%s" % (round(size/float(lim/2**10),2), suf)

@@ -15,7 +15,7 @@ from Components.Label import Label
 from Components.ScrollLabel import ScrollLabel
 from Components.config import config, ConfigBoolean, configfile
 from LanguageSelection import LanguageWizard
-from enigma import eConsoleAppContainer, eTimer
+from enigma import eConsoleAppContainer, eTimer, eActionMap
 
 import os
 
@@ -42,11 +42,28 @@ class StartWizard(WizardLanguage, Rc):
 		config.misc.firstrun.save()
 		configfile.save()
 
+def setLanguageFromBackup(backupfile):
+	try:
+		import tarfile
+		tar = tarfile.open(backupfile)
+		for member in tar.getmembers():
+			if member.name == 'etc/enigma2/settings':
+				for line in tar.extractfile(member):
+					if line.startswith('config.osd.language'):
+						languageToSelect = line.strip().split('=')[1]
+						if languageToSelect:
+							from Components.Language import language
+							language.activateLanguage(languageToSelect)
+							break
+		tar.close()
+	except:
+		pass
+
 def checkForAvailableAutoBackup():
-	for dir in [name for name in os.listdir("/media/") if os.path.isdir(os.path.join("/media/", name))]:
-		if os.path.isfile("/media/%s/backup/PLi-AutoBackup.tar.gz" % dir):
+	for backupfile in ["/media/%s/backup/PLi-AutoBackup.tar.gz" % media for media in os.listdir("/media/") if os.path.isdir(os.path.join("/media/", media))]:
+		if os.path.isfile(backupfile):
+			setLanguageFromBackup(backupfile)
 			return True
-	return False
 
 class AutoRestoreWizard(MessageBox):
 	def __init__(self, session):
@@ -64,8 +81,9 @@ class AutoInstallWizard(Screen):
 		<panel position="right" size="5%,*"/>
 		<panel position="top" size="*,5%"/>
 		<panel position="bottom" size="*,5%"/>
-		<widget name="header" position="top" size="*,50" font="Regular;40"/>
+		<widget name="header" position="top" size="*,48" font="Regular;38" noWrap="1"/>
 		<widget name="progress" position="top" size="*,24" backgroundColor="#00242424"/>
+		<eLabel position="top" size="*,2"/>
 		<widget name="AboutScrollLabel" font="Fixed;20" position="fill"/>
 	</screen>"""
 	def __init__(self, session):
@@ -89,12 +107,14 @@ class AutoInstallWizard(Screen):
 			autoinstallfiles = glob.glob('/media/*/backup/autoinstall') + glob.glob('/media/net/*/backup/autoinstall')
 		autoinstallfiles.sort(key=os.path.getmtime, reverse=True)
 		for autoinstallfile in autoinstallfiles:
-			self.packages = [package.strip() for package in open(autoinstallfile).readlines()]
-			if self.packages:
-				self.number_of_packages = len(self.packages)
-				# make sure we have a valid package list before attempting to restore packages
-				self.container.execute("opkg update")
-				return
+			if os.path.isfile(autoinstallfile):
+				autoinstalldir = os.path.dirname(autoinstallfile)
+				self.packages = [package.strip() for package in open(autoinstallfile).readlines()] + [os.path.join(autoinstalldir, file) for file in os.listdir(autoinstalldir) if file.endswith(".ipk")]
+				if self.packages:
+					self.number_of_packages = len(self.packages)
+					# make sure we have a valid package list before attempting to restore packages
+					self.container.execute("opkg update")
+					return
 		self.abort()
 
 	def run_console(self):
@@ -106,7 +126,7 @@ class AutoInstallWizard(Screen):
 		self.package = self.packages.pop(0)
 		self["header"].setText(_("%s%% Autoinstalling %s") % (self["progress"].value, self.package))
 		try:
-			if self.container.execute('opkg install %s' % self.package):
+			if self.container.execute('opkg install "%s"' % self.package):
 				raise Exception, "failed to execute command!"
 				self.appClosed(True)
 		except Exception, e:
@@ -131,11 +151,15 @@ class AutoInstallWizard(Screen):
 			self["header"].setText(_("Autoinstalling Completed"))
 			self.delay = eTimer()
 			self.delay.callback.append(self.abort)
+			eActionMap.getInstance().bindAction('', 0, self.abort)
 			self.delay.startLongTimer(5)
 
-	def abort(self):
-		self.container.appClosed.remove(self.appClosed)
-		self.container.dataAvail.remove(self.dataAvail)
+	def abort(self, key=None, flag=None):
+		if hasattr(self, 'delay'):
+			self.delay.stop()
+			eActionMap.getInstance().unbindAction('', self.abort)
+			self.container.appClosed.remove(self.appClosed)
+			self.container.dataAvail.remove(self.dataAvail)
 		self.container = None
 		self.logfile.close()
 		os.remove("/etc/.doAutoinstall")

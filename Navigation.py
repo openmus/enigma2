@@ -1,16 +1,17 @@
-from enigma import eServiceCenter, eServiceReference, pNavigation, getBestPlayableServiceReference, iPlayableService, setPreferredTuner, eStreamServer
+from enigma import eServiceCenter, eServiceReference, pNavigation, getBestPlayableServiceReference, iPlayableService, setPreferredTuner, eStreamServer, iRecordableServicePtr
 from Components.ImportChannels import ImportChannels
 from Components.ParentalControl import parentalControl
 from Components.SystemInfo import SystemInfo
 from Components.config import config, configfile
 from Tools.BoundFunction import boundFunction
 from Tools.StbHardware import getFPWasTimerWakeup
+from Tools.Alternatives import ResolveCiAlternative
 from Tools import Notifications
 from time import time
 import RecordTimer
 import Screens.Standby
 import NavigationInstance
-import ServiceReference
+from ServiceReference import ServiceReference, isPlayableForCur
 from Screens.InfoBar import InfoBar
 from Components.Sources.StreamService import StreamServiceList
 
@@ -39,10 +40,13 @@ class Navigation:
 		self.__isRestartUI = config.misc.RestartUI.value
 		startup_to_standby = config.usage.startup_to_standby.value
 		wakeup_time_type = config.misc.prev_wakeup_time_type.value
+		wakeup_timer_enabled = False
 		if config.usage.remote_fallback_import_restart.value:
 			ImportChannels()
 		if self.__wasTimerWakeup:
-			RecordTimer.RecordTimerEntry.setWasInDeepStandby()
+			wakeup_timer_enabled = wakeup_time_type == 3 and config.misc.prev_wakeup_time.value
+			if not wakeup_timer_enabled:
+				RecordTimer.RecordTimerEntry.setWasInDeepStandby()
 		if config.misc.RestartUI.value:
 			config.misc.RestartUI.value = False
 			config.misc.RestartUI.save()
@@ -50,9 +54,9 @@ class Navigation:
 		else:
 			if config.usage.remote_fallback_import.value and not config.usage.remote_fallback_import_restart.value:
 				ImportChannels()
-			if startup_to_standby == "yes" or self.__wasTimerWakeup and config.misc.prev_wakeup_time.value and ((wakeup_time_type == 0 or wakeup_time_type == 1) or ( wakeup_time_type == 3 and startup_to_standby == "except")):
+			if startup_to_standby == "yes" or self.__wasTimerWakeup and config.misc.prev_wakeup_time.value and (wakeup_time_type == 0 or wakeup_time_type == 1 or (wakeup_time_type == 3 and startup_to_standby == "except")):
 				if not Screens.Standby.inTryQuitMainloop:
-					Notifications.AddNotification(Screens.Standby.Standby)
+					Notifications.AddNotification(Screens.Standby.Standby, wakeup_timer_enabled and 1 or True)
 		if config.misc.prev_wakeup_time.value:
 			config.misc.prev_wakeup_time.value = 0
 			config.misc.prev_wakeup_time.save()
@@ -73,16 +77,16 @@ class Navigation:
 			self.currentlyPlayingService = None
 
 	def dispatchRecordEvent(self, rec_service, event):
-#		print "record_event", rec_service, event
+#		print "[Navigation] record_event", rec_service, event
 		for x in self.record_event:
 			x(rec_service, event)
 
 	def playService(self, ref, checkParentalControl=True, forceRestart=False, adjust=True):
 		oldref = self.currentlyPlayingServiceOrGroup
 		if ref and oldref and ref == oldref and not forceRestart:
-			print "ignore request to play already running service(1)"
+			print "[Navigation] ignore request to play already running service(1)"
 			return 1
-		print "playing", ref and ref.toString()
+		print "[Navigation] playing: ", ref and ref.toString()
 		if ref is None:
 			self.stopService()
 			return 0
@@ -92,9 +96,13 @@ class Navigation:
 			if ref.flags & eServiceReference.isGroup:
 				oldref = self.currentlyPlayingServiceReference or eServiceReference()
 				playref = getBestPlayableServiceReference(ref, oldref)
-				print "playref", playref
+				if playref and config.misc.use_ci_assignment.value and not isPlayableForCur(playref):
+					alternative_ci_ref = ResolveCiAlternative(ref, playref)
+					if alternative_ci_ref:
+						playref = alternative_ci_ref
+				print "[Navigation] alternative ref: ", playref and playref.toString()
 				if playref and oldref and playref == oldref and not forceRestart:
-					print "ignore request to play already running service(2)"
+					print "[Navigation] ignore request to play already running service(2)"
 					return 1
 				if not playref:
 					alternativeref = getBestPlayableServiceReference(ref, eServiceReference(), True)
@@ -103,7 +111,7 @@ class Navigation:
 						self.currentlyPlayingServiceReference = alternativeref
 						self.currentlyPlayingServiceOrGroup = ref
 						if self.pnav.playService(alternativeref):
-							print "Failed to start", alternativeref
+							print "[Navigation] Failed to start: ", alternativeref.toString()
 							self.currentlyPlayingServiceReference = None
 							self.currentlyPlayingServiceOrGroup = None
 					return 0
@@ -148,7 +156,7 @@ class Navigation:
 									setPreferredTuner(int(config.usage.frontend_priority_dvbs.value))
 									setPriorityFrontend = True
 				if self.pnav.playService(playref):
-					print "Failed to start", playref
+					print "[Navigation] Failed to start: ", playref.toString()
 					self.currentlyPlayingServiceReference = None
 					self.currentlyPlayingServiceOrGroup = None
 				if setPriorityFrontend:
@@ -166,19 +174,21 @@ class Navigation:
 
 	def recordService(self, ref, simulate=False):
 		service = None
-		if not simulate: print "recording service: %s" % (str(ref))
-		if isinstance(ref, ServiceReference.ServiceReference):
+		if not simulate: print "[Navigation] recording service: %s" % (str(ref))
+		if isinstance(ref, ServiceReference):
 			ref = ref.ref
 		if ref:
 			if ref.flags & eServiceReference.isGroup:
 				ref = getBestPlayableServiceReference(ref, eServiceReference(), simulate)
 			service = ref and self.pnav and self.pnav.recordService(ref, simulate)
 			if service is None:
-				print "record returned non-zero"
+				print "[Navigation] record returned non-zero"
 		return service
 
 	def stopRecordService(self, service):
-		ret = self.pnav and self.pnav.stopRecordService(service)
+		ret = -1
+		if service and isinstance(service, iRecordableServicePtr):
+			ret = self.pnav and self.pnav.stopRecordService(service)
 		return ret
 
 	def getRecordings(self, simulate=False):

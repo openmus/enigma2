@@ -65,18 +65,6 @@ bool eServiceEvent::loadLanguage(Event *evt, const std::string &lang, int tsidon
 				{
 					/* stick to this language, avoid merging or mixing descriptors of different languages */
 					language = cc;
-					/*
-					 * Bit of a hack, some providers put the event description partly in the short descriptor,
-					 * and the remainder in extended event descriptors.
-					 * In that case, we cannot really treat short/extended description as separate descriptions.
-					 * Unfortunately we cannot recognise this, but we'll use the length of the short description
-					 * to guess whether we should concatenate both descriptions (without any spaces)
-					 */
-					if (eed->getText().empty() && m_short_description.size() >= 180)
-					{
-						m_extended_description = m_short_description;
-						m_short_description = "";
-					}
 					if (table == 0) // Two Char Mapping EED must be processed in one pass
 					{
 						m_tmp_extended_description += eed->getText();
@@ -89,18 +77,16 @@ bool eServiceEvent::loadLanguage(Event *evt, const std::string &lang, int tsidon
 					{
 						m_extended_description += convertDVBUTF8(eed->getText(), table, tsidonid);
 					}
+					const ExtendedEventList *itemlist = eed->getItems();
+					for (ExtendedEventConstIterator it = itemlist->begin(); it != itemlist->end(); ++it)
+					{
+						m_extended_description_items += '\n';
+						m_extended_description_items += convertDVBUTF8((*it)->getItemDescription(), table, tsidonid);
+						m_extended_description_items += ": ";
+						m_extended_description_items += convertDVBUTF8((*it)->getItem(), table, tsidonid);
+					}
 					retval=1;
 				}
-#if 0
-				const ExtendedEventList *itemlist = eed->getItems();
-				for (ExtendedEventConstIterator it = itemlist->begin(); it != itemlist->end(); ++it)
-				{
-					m_extended_description += '\n';
-					m_extended_description += convertDVBUTF8((*it)->getItemDescription());
-					m_extended_description += ' ';
-					m_extended_description += convertDVBUTF8((*it)->getItem());
-				}
-#endif
 				break;
 			}
 			default:
@@ -183,7 +169,15 @@ bool eServiceEvent::loadLanguage(Event *evt, const std::string &lang, int tsidon
 		}
 	}
 	if ( m_extended_description.find(m_short_description) == 0 )
-		m_short_description="";
+		m_short_description = "";
+
+	if ( ! m_extended_description_items.empty() )
+	{
+		m_extended_description += '\n';
+		m_extended_description += m_extended_description_items;
+		m_extended_description_items = "";
+	}
+
 	return retval;
 }
 
@@ -217,9 +211,9 @@ RESULT eServiceEvent::parseFrom(ATSCEvent *evt)
 
 RESULT eServiceEvent::parseFrom(const ExtendedTextTableSection *sct)
 {
-	m_short_description = sct->getMessage(m_language);
-	if (m_short_description.empty()) m_short_description = sct->getMessage(m_language_alternative);
-	if (m_short_description.empty()) m_short_description = sct->getMessage("");
+	m_short_description = convertDVBUTF8(sct->getMessage(m_language));
+	if (m_short_description.empty()) m_short_description = convertDVBUTF8(sct->getMessage(m_language_alternative));
+	if (m_short_description.empty()) m_short_description = convertDVBUTF8(sct->getMessage(""));
 	return 0;
 }
 
@@ -248,10 +242,11 @@ std::string eServiceEvent::getBeginTimeString() const
 {
 	tm t;
 	localtime_r(&m_begin, &t);
-	char tmp[13];
-	snprintf(tmp, 13, "%02d.%02d, %02d:%02d",
+	char tmp[32];
+	snprintf(tmp, sizeof(tmp) - 1, "%02d.%02d, %02d:%02d",
 		t.tm_mday, t.tm_mon+1,
 		t.tm_hour, t.tm_min);
+	tmp[12] = '\0';
 	return std::string(tmp, 12);
 }
 

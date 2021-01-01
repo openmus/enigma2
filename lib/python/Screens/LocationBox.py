@@ -22,6 +22,7 @@ from Tools.NumericalTextInput import NumericalTextInput
 from Components.ActionMap import NumberActionMap, HelpableActionMap
 from Components.Label import Label
 from Components.Pixmap import Pixmap
+from Components.Sources.StaticText import StaticText
 from Components.Button import Button
 from Components.FileList import FileList
 from Components.MenuList import MenuList
@@ -40,13 +41,13 @@ class LocationBox(Screen, NumericalTextInput, HelpableScreen):
 			<widget name="filelist" position="0,55" zPosition="1" size="540,210" scrollbarMode="showOnDemand" selectionDisabled="1" />
 			<widget name="textbook" position="0,272" size="540,22" font="Regular;22" />
 			<widget name="booklist" position="5,302" zPosition="2" size="535,100" scrollbarMode="showOnDemand" />
-			<widget name="red" position="0,415" zPosition="1" size="135,40" pixmap="skin_default/buttons/red.png" transparent="1" alphatest="on" />
+			<widget name="red" position="0,415" zPosition="1" size="135,40" pixmap="buttons/red.png" transparent="1" alphatest="on" />
 			<widget name="key_red" position="0,415" zPosition="2" size="135,40" halign="center" valign="center" font="Regular;22" transparent="1" shadowColor="black" shadowOffset="-1,-1" />
-			<widget name="green" position="135,415" zPosition="1" size="135,40" pixmap="skin_default/buttons/green.png" transparent="1" alphatest="on" />
+			<widget name="green" position="135,415" zPosition="1" size="135,40" pixmap="buttons/green.png" transparent="1" alphatest="on" />
 			<widget name="key_green" position="135,415" zPosition="2" size="135,40" halign="center" valign="center" font="Regular;22" transparent="1" shadowColor="black" shadowOffset="-1,-1" />
-			<widget name="yellow" position="270,415" zPosition="1" size="135,40" pixmap="skin_default/buttons/yellow.png" transparent="1" alphatest="on" />
+			<widget name="yellow" position="270,415" zPosition="1" size="135,40" pixmap="buttons/yellow.png" transparent="1" alphatest="on" />
 			<widget name="key_yellow" position="270,415" zPosition="2" size="135,40" halign="center" valign="center" font="Regular;22" transparent="1" shadowColor="black" shadowOffset="-1,-1" />
-			<widget name="blue" position="405,415" zPosition="1" size="135,40" pixmap="skin_default/buttons/blue.png" transparent="1" alphatest="on" />
+			<widget name="blue" position="405,415" zPosition="1" size="135,40" pixmap="buttons/blue.png" transparent="1" alphatest="on" />
 			<widget name="key_blue" position="405,415" zPosition="2" size="135,40" halign="center" valign="center" font="Regular;22" transparent="1" shadowColor="black" shadowOffset="-1,-1" />
 		</screen>"""
 
@@ -70,7 +71,7 @@ class LocationBox(Screen, NumericalTextInput, HelpableScreen):
 
 		# Set Text
 		self["text"] = Label(text)
-		self["textbook"] = Label(_("Bookmarks"))
+		self["textbook"] = Label(_("Bookmarks") if bookmarks else '')
 
 		# Save parameters locally
 		self.text = text
@@ -91,9 +92,9 @@ class LocationBox(Screen, NumericalTextInput, HelpableScreen):
 
 		# Buttons
 		self["key_green"] = Button(_("OK"))
-		self["key_yellow"] = Button(_("Rename"))
-		self["key_blue"] = Button(_("Remove bookmark"))
 		self["key_red"] = Button(_("Cancel"))
+		self["key_yellow"] = StaticText(_("Rename"))
+		self["key_blue"] = StaticText(_("Remove bookmark") if self.realBookmarks else '')
 
 		# Background for Buttons
 		self["green"] = Pixmap()
@@ -126,7 +127,7 @@ class LocationBox(Screen, NumericalTextInput, HelpableScreen):
 				"right": self.right,
 				"up": self.up,
 				"down": self.down,
-				"ok": (self.ok, _("select")),
+				"ok": (self.ok, _("Select")),
 				"back": (self.cancel, _("Cancel")),
 			}, -2)
 
@@ -140,13 +141,13 @@ class LocationBox(Screen, NumericalTextInput, HelpableScreen):
 
 		self["EPGSelectActions"] = LocationBoxActionMap(self, "EPGSelectActions",
 			{
-				"prevBouquet": (self.switchToBookList, _("switch to bookmarks")),
-				"nextBouquet": (self.switchToFileList, _("switch to filelist")),
+				"prevBouquet": (self.switchToBookList, _("Switch to bookmarks")),
+				"nextBouquet": (self.switchToFileList, _("Switch to filelist")),
 			}, -2)
 
 		self["MenuActions"] = LocationBoxActionMap(self, "MenuActions",
 			{
-				"menu": (self.showMenu, _("menu")),
+				"menu": (self.showMenu, _("Menu")),
 			}, -2)
 
 		# Actions used by quickselect
@@ -193,24 +194,28 @@ class LocationBox(Screen, NumericalTextInput, HelpableScreen):
 	def showHideRename(self):
 		# Don't allow renaming when filename is empty
 		if not self.filename:
-			self["key_yellow"].hide()
+			self["key_yellow"].setText("")
 
 	def switchToFileList(self):
 		if not self.userMode:
 			self.currList = "filelist"
 			self["filelist"].selectionEnabled(1)
 			self["booklist"].selectionEnabled(0)
-			self["key_blue"].text = _("Add bookmark")
+			self["key_blue"].setText(_("Add bookmark" if self.realBookmarks else None))
 			self.updateTarget()
 
 	def switchToBookList(self):
+		if not self.realBookmarks:
+			return
 		self.currList = "booklist"
 		self["filelist"].selectionEnabled(0)
 		self["booklist"].selectionEnabled(1)
-		self["key_blue"].text = _("Remove bookmark")
+		self["key_blue"].setText(_("Remove bookmark"))
 		self.updateTarget()
 
 	def addRemoveBookmark(self):
+		if not self.realBookmarks:
+			return
 		if self.currList == "filelist":
 			# add bookmark
 			folder = self["filelist"].getSelection()[0]
@@ -242,9 +247,10 @@ class LocationBox(Screen, NumericalTextInput, HelpableScreen):
 			self["booklist"].setList(self.bookmarks)
 
 	def updateBookmarks(self):
-		config.movielist.videodirs.load()
-		self.bookmarks = config.movielist.videodirs and config.movielist.videodirs.value[:] or []
-		self["booklist"].setList(self.bookmarks)
+		if self.realBookmarks:
+			self.realBookmarks.load()
+			self.bookmarks = self.realBookmarks and self.realBookmarks.value[:] or []
+			self["booklist"].setList(self.bookmarks)
 
 	def createDir(self):
 		if self["filelist"].current_directory is not None:
@@ -436,20 +442,20 @@ class LocationBox(Screen, NumericalTextInput, HelpableScreen):
 		if not self.userMode and self.realBookmarks:
 			if self.currList == "filelist":
 				menu = [
-					(_("switch to bookmarks"), self.switchToBookList),
-					(_("add bookmark"), self.addRemoveBookmark),
-					(_("update bookmarks"), self.updateBookmarks)
+					(_("Switch to bookmarks"), self.switchToBookList),
+					(_("Add bookmark"), self.addRemoveBookmark),
+					(_("Update bookmarks"), self.updateBookmarks)
 				]
 				if self.editDir:
 					menu.extend((
-						(_("create directory"), self.createDir),
-						(_("remove directory"), self.removeDir)
+						(_("Create directory"), self.createDir),
+						(_("Remove directory"), self.removeDir)
 					))
 			else:
 				menu = (
-					(_("switch to filelist"), self.switchToFileList),
-					(_("remove bookmark"), self.addRemoveBookmark),
-					(_("update bookmarks"), self.updateBookmarks)
+					(_("Switch to filelist"), self.switchToFileList),
+					(_("Remove bookmark"), self.addRemoveBookmark),
+					(_("Update bookmarks"), self.updateBookmarks)
 				)
 
 			self.session.openWithCallback(
@@ -466,7 +472,7 @@ class LocationBox(Screen, NumericalTextInput, HelpableScreen):
 	def usermodeOn(self):
 		self.switchToBookList()
 		self["filelist"].hide()
-		self["key_blue"].hide()
+		self["key_blue"].SetText("")
 
 	def keyNumberGlobal(self, number):
 		# Cancel Timeout

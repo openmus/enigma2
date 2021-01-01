@@ -249,9 +249,10 @@ class eDVBSatelliteLNBParameters
 			SatCR_format = SatCR_format_none;
 #ifndef SWIG
 			m_12V_relais_state = OFF;
-			m_lof_hi = m_lof_lo = m_lof_threshold = 0;
+			m_lof_hi = m_lof_lo = m_lof_threshold = LNBNum = 0;
 			m_increased_voltage = false;
 			m_prio = -1;
+			m_advanced_satposdepends = -1;
 #endif
 		}
 #ifdef SWIG
@@ -274,13 +275,17 @@ class eDVBSatelliteLNBParameters
 	eDVBSatelliteRotorParameters m_rotor_parameters;
 
 	int m_prio; // to override automatic tuner management ... -1 is Auto
+	int LNBNum;
+	int m_advanced_satposdepends;
 #endif
 public:
 #define guard_offset_min -8000
 #define guard_offset_max 8000
 #define guard_offset_step 8000
 #define MAX_SATCR 32
-#define MAX_LNBNUM 32
+#define MAX_FIXED_LNB_POSITIONS 64
+#define MAX_MOVABLE_LNBS 7
+#define MAX_LNBNUM (MAX_FIXED_LNB_POSITIONS + MAX_MOVABLE_LNBS)
 
 	SatCR_format_t SatCR_format;
 	int SatCR_positions;
@@ -294,7 +299,7 @@ public:
 	int old_orbital_position;
 	int guard_offset_old;
 	int guard_offset;
-	int LNBNum;
+	int boot_up_time = 0;
 };
 
 class eDVBRegisteredFrontend;
@@ -363,7 +368,10 @@ public:
 	RESULT setLNBThreshold(int threshold);
 	RESULT setLNBIncreasedVoltage(bool onoff);
 	RESULT setLNBPrio(int prio);
-	RESULT setLNBNum(int LNBNum);
+	RESULT setLNBNum(int lnbnum);
+	RESULT setLNBsatposdepends(int advanced_satposdepends);
+	RESULT getMaxFixedLnbPositions() {return MAX_FIXED_LNB_POSITIONS;}
+	RESULT getMaxLnbNum() {return MAX_LNBNUM;}
 /* DiSEqC Specific Parameters */
 	RESULT setDiSEqCMode(int diseqcmode);
 	RESULT setToneburst(int toneburst);
@@ -387,6 +395,7 @@ public:
 	RESULT setLNBSatCRpositions(int SatCR_positions);
 	RESULT setLNBSatCRformat(SatCR_format_t SatCR_format);
 	RESULT setLNBSatCRPositionNumber(unsigned int position_number);
+	RESULT setLNBBootupTime(int BootUpTime);
 	RESULT getLNBSatCR();
 	RESULT getLNBSatCRvco();
 	RESULT getLNBSatCRpositions();
@@ -400,8 +409,11 @@ public:
 /* Tuner Specific Parameters */
 	RESULT setTunerLinked(int from, int to);
 	RESULT setTunerDepends(int from, int to);
+	RESULT resetAdvancedsatposdependsRoot(int link);
+	int getRotorAdvancedsatposdependsPosition(int advanced_satposdepends);
+	bool setAdvancedsatposdependsRoot(int advanced_satposdepends);
+	bool tunerAdvancedsatposdependsInUse(int root);
 	void setSlotNotLinked(int tuner_no);
-
 	void setRotorMoving(int, bool); // called from the frontend's
 	bool isRotorMoving();
 	bool canMeasureInputPower() { return m_canMeasureInputPower; }

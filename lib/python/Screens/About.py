@@ -25,10 +25,11 @@ class About(Screen):
 		hddsplit = skin.parameters.get("AboutHddSplit", 0)
 
 		AboutText = _("Hardware: ") + about.getHardwareTypeString() + "\n"
-		AboutText += _("CPU: ") + about.getCPUInfoString() + "\n"
+		cpu = about.getCPUInfoString()
+		AboutText += _("CPU: ") + cpu + "\n"
 		AboutText += _("Image: ") + about.getImageTypeString() + "\n"
 		AboutText += _("Build date: ") + about.getBuildDateString() + "\n"
-		AboutText += _("Last upgrade: ") + about.getUpdateDateString() + "\n"
+		AboutText += _("Last update: ") + about.getUpdateDateString() + "\n"
 
 		# [WanWizard] Removed until we find a reliable way to determine the installation date
 		# AboutText += _("Installed: ") + about.getFlashDateString() + "\n"
@@ -47,7 +48,7 @@ class About(Screen):
 
 		AboutText += _("DVB driver version: ") + about.getDriverInstalledDate() + "\n"
 
-		GStreamerVersion = _("GStreamer version: ") + about.getGStreamerVersionString().replace("GStreamer","")
+		GStreamerVersion = _("GStreamer version: ") + about.getGStreamerVersionString(cpu).replace("GStreamer","")
 		self["GStreamerVersion"] = StaticText(GStreamerVersion)
 		AboutText += GStreamerVersion + "\n"
 
@@ -99,6 +100,7 @@ class About(Screen):
 		AboutText += hddinfo + "\n\n" + _("Network Info:")
 		for x in about.GetIPsFromNetworkInterfaces():
 			AboutText += "\n" + x[0] + ": " + x[1]
+		AboutText += '\n\n' + _("Uptime") + ": " + about.getBoxUptime()
 
 		self["AboutScrollLabel"] = ScrollLabel(AboutText)
 		self["key_green"] = Button(_("Translations"))
@@ -279,7 +281,7 @@ class MemoryInfo(Screen):
 
 		self["params"] = MemoryInfoSkinParams()
 
-		self['info'] = Label(_("This info is for developers only.\nFor a normal users it is not relevant.\nDon't panic please when you see values being displayed that you think look suspicious!"))
+		self['info'] = Label(_("This info is for developers only.\nFor normal users it is not relevant.\nPlease don't panic if you see values displayed looking suspicious!"))
 
 		self.setTitle(_("Memory Info"))
 		self.onLayoutFinish.append(self.getMemoryInfo)
@@ -354,6 +356,8 @@ class Troubleshoot(Screen):
 				"cancel": self.close,
 				"up": self["AboutScrollLabel"].pageUp,
 				"down": self["AboutScrollLabel"].pageDown,
+				"moveUp": self["AboutScrollLabel"].homePage,
+				"moveDown": self["AboutScrollLabel"].endPage,
 				"left": self.left,
 				"right": self.right,
 				"red": self.red,
@@ -379,7 +383,7 @@ class Troubleshoot(Screen):
 
 	def red(self):
 		if self.commandIndex >= self.numberOfCommands:
-			self.session.openWithCallback(self.removeAllLogfiles, MessageBox, _("Do you want to remove all the crahs logfiles"), default=False)
+			self.session.openWithCallback(self.removeAllLogfiles, MessageBox, _("Do you want to remove all the crash logfiles"), default=False)
 		else:
 			self.close()
 
@@ -443,19 +447,27 @@ class Troubleshoot(Screen):
 
 	def updateOptions(self):
 		self.titles = ["dmesg", "ifconfig", "df", "top", "ps", "messages"]
-		self.commands = ["dmesg", "ifconfig", "df -h", "top -n 1", "ps", "cat /var/volatile/log/messages"]
+		self.commands = ["dmesg", "ifconfig", "df -h", "top -n 1", "ps -l", "cat /var/volatile/log/messages"]
 		install_log = "/home/root/autoinstall.log"
 		if os.path.isfile(install_log):
 				self.titles.append("%s" % install_log)
 				self.commands.append("cat %s" % install_log)
 		self.numberOfCommands = len(self.commands)
-		fileNames = self.getLogFilesList() + self.getDebugFilesList()
+		fileNames = self.getLogFilesList()
 		if fileNames:
 			totalNumberOfLogfiles = len(fileNames)
 			logfileCounter = 1
 			for fileName in reversed(fileNames):
 				self.titles.append("logfile %s (%s/%s)" % (fileName, logfileCounter, totalNumberOfLogfiles))
 				self.commands.append("cat %s" % (fileName))
+				logfileCounter += 1
+		fileNames = self.getDebugFilesList()
+		if fileNames:
+			totalNumberOfLogfiles = len(fileNames)
+			logfileCounter = 1
+			for fileName in reversed(fileNames):
+				self.titles.append("debug log %s (%s/%s)" % (fileName, logfileCounter, totalNumberOfLogfiles))
+				self.commands.append("tail -n 2500 %s" % (fileName))
 				logfileCounter += 1
 		self.commandIndex = min(len(self.commands) - 1, self.commandIndex)
 		self.updateKeys()

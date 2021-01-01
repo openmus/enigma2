@@ -19,7 +19,7 @@ from Screens.VirtualKeyBoard import VirtualKeyBoard
 from Tools.Alternatives import GetWithAlternative
 from Tools.FallbackTimer import FallbackTimerDirs
 from RecordTimer import AFTEREVENT
-from enigma import eEPGCache
+from enigma import eEPGCache, iRecordableServicePtr
 from time import localtime, mktime, time, strftime
 from datetime import datetime
 import urllib
@@ -123,7 +123,7 @@ class TimerEntry(Screen, ConfigListScreen):
 		self.timerentry_name = ConfigText(default = self.timer.name, visible_width = 50, fixed_size = False)
 		self.timerentry_description = ConfigText(default = self.timer.description, visible_width = 50, fixed_size = False)
 		self.timerentry_tags = self.timer.tags[:]
-		self.timerentry_tagsset = ConfigSelection(choices = [not self.timerentry_tags and "None" or " ".join(self.timerentry_tags)])
+		self.timerentry_tagsset = ConfigSelection(choices = [not self.timerentry_tags and _("None") or " ".join(self.timerentry_tags)])
 
 		self.timerentry_repeated = ConfigSelection(default = repeated, choices = [("weekly", _("weekly")), ("daily", _("daily")), ("weekdays", _("Mon-Fri")), ("user", _("user defined"))])
 		self.timerentry_renamerepeat = ConfigYesNo(default = rename_repeat)
@@ -174,7 +174,8 @@ class TimerEntry(Screen, ConfigListScreen):
 		self.entryDescription = getConfigListEntry(_("Description"), self.timerentry_description)
 		self.list.append(self.entryDescription)
 		self.timerJustplayEntry = getConfigListEntry(_("Timer type"), self.timerentry_justplay)
-		self.list.append(self.timerJustplayEntry)
+		if config.usage.setup_level.index >= 1:
+			self.list.append(self.timerJustplayEntry)
 		self.timerTypeEntry = getConfigListEntry(_("Repeat type"), self.timerentry_type)
 		self.list.append(self.timerTypeEntry)
 
@@ -425,6 +426,10 @@ class TimerEntry(Screen, ConfigListScreen):
 			self.timer.service_ref = self.timerentry_service_ref
 			self.timer.tags = self.timerentry_tags
 
+			# reset state when edit timer type
+			if not self.timer.external and self.timer.justplay != "zap" and self.timer.isRunning():
+				if self.timer in self.session.nav.RecordTimer.timer_list and (not self.timer.record_service or not isinstance(self.timer.record_service, iRecordableServicePtr)):
+					self.timer.resetState()
 
 			if self.timerentry_fallback.value:
 				self.timer.dirname = self.timerentry_fallbackdirname.value
@@ -543,7 +548,7 @@ class TimerEntry(Screen, ConfigListScreen):
 	def tagEditFinished(self, ret):
 		if ret is not None:
 			self.timerentry_tags = ret
-			self.timerentry_tagsset.setChoices([not ret and "None" or " ".join(ret)])
+			self.timerentry_tagsset.setChoices([not ret and _("None") or " ".join(ret)])
 			self["config"].invalidate(self.tagsSet)
 
 class TimerLog(Screen):

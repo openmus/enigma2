@@ -207,6 +207,8 @@ class choicesList(object):  # XXX: we might want a better name for this
 		return len(self.choices) or 1
 
 	def __getitem__(self, index):
+		if index == 0 and not self.choices:
+			return ""
 		if self.type == choicesList.LIST_TYPE_LIST:
 			ret = self.choices[index]
 			if isinstance(ret, tuple):
@@ -216,12 +218,14 @@ class choicesList(object):  # XXX: we might want a better name for this
 
 	def index(self, value):
 		try:
-			return self.__list__().index(value)
+			return list(map(str, self.__list__())).index(str(value))
 		except (ValueError, IndexError):
 			# occurs e.g. when default is not in list
 			return 0
 
 	def __setitem__(self, index, value):
+		if index == 0 and not self.choices:
+			return
 		if self.type == choicesList.LIST_TYPE_LIST:
 			orig = self.choices[index]
 			if isinstance(orig, tuple):
@@ -261,15 +265,17 @@ class descriptionList(choicesList):  # XXX: we might want a better name for this
 		if self.type == choicesList.LIST_TYPE_LIST:
 			for x in self.choices:
 				if isinstance(x, tuple):
-					if x[0] == index:
+					if str(x[0]) == str(index):
 						return str(x[1])
-				elif x == index:
+				elif str(x) == str(index):
 					return str(x)
 			return str(index)  # Fallback!
 		else:
 			return str(self.choices.get(index, ""))
 
 	def __setitem__(self, index, value):
+		if not self.choices:
+			return
 		if self.type == choicesList.LIST_TYPE_LIST:
 			i = self.index(index)
 			orig = self.choices[i]
@@ -281,15 +287,34 @@ class descriptionList(choicesList):  # XXX: we might want a better name for this
 			self.choices[index] = value
 
 #
-# ConfigSelection is a "one of.."-type.
-# it has the "choices", usually a list, which contains
-# (id, desc)-tuples (or just only the ids, in case the id
-# will be used as description)
+# ConfigSelection is a "one of.."-type.  it has the "choices", usually
+# a list, which contains (id, desc)-tuples (or just only the ids, in
+# case str(id) will be used as description)
 #
-# all ids MUST be plain strings.
+# The ids in "choices" may be of any type, provided that for there
+# is a one-to-one mapping between x and str(x) for every x in "choices".
+# The ids do not necessarily all have to have the same type, but
+# managing that is left to the programmer.  For example:
+#  choices=[1, 2, "3", "4"] is permitted, but
+#  choices=[1, 2, "1", "2"] is not,
+# because str(1) == "1" and str("1") =="1", and because str(2) == "2"
+# and str("2") == "2".
+#
+# This requirement is not enforced by the code.
+#
+# config.item.value and config.item.getValue always return an object
+# of the type of the selected item.
+#
+# When assigning to config.item.value or using config.item.setValue,
+# where x is in the "choices" list, either x or str(x) may be used
+# to set the choice. The form of the assignment will not affect the
+# choices list or the type returned by the ConfigSelection instance.
+#
+# This replaces the former requirement that all ids MUST be plain
+# strings, but is compatible with that requirement.
 #
 class ConfigSelection(ConfigElement):
-	def __init__(self, choices, default=None):
+	def __init__(self, choices, default=None, graphic=True):
 		ConfigElement.__init__(self)
 		self.choices = choicesList(choices)
 
@@ -298,6 +323,7 @@ class ConfigSelection(ConfigElement):
 
 		self._descr = None
 		self.default = self._value = self.last_value = default
+		self.graphic = graphic
 
 	def setChoices(self, choices, default=None):
 		self.choices = choicesList(choices)
@@ -310,18 +336,25 @@ class ConfigSelection(ConfigElement):
 			self.value = default
 
 	def setValue(self, value):
-		if value in self.choices:
-			self._value = value
+		if str(value) in map(str, self.choices):
+			self._value = self.choices[self.choices.index(value)]
 		else:
 			self._value = self.default
 		self._descr = None
 		self.changed()
 
 	def tostring(self, val):
-		return val
+		return str(val)
 
 	def getValue(self):
 		return self._value
+
+	def load(self):
+		sv = self.saved_value
+		if sv is None:
+			self.value = self.default
+		else:
+			self.value = self.choices[self.choices.index(sv)]
 
 	def setCurrentText(self, text):
 		i = self.choices.index(self.value)
@@ -363,6 +396,12 @@ class ConfigSelection(ConfigElement):
 	def getMulti(self, selected):
 		if self._descr is None:
 			self._descr = self.description[self.value]
+		from config import config
+		from skin import switchPixmap
+		if self.graphic and config.usage.boolean_graphic.value == "true" and "menu_on" in switchPixmap and "menu_off" in switchPixmap:
+			pixmap = "menu_on" if self._descr in (_('True'), _('true'), _('Yes'), _('yes'), _('Enable'), _('enable'), _('Enabled'), _('enabled'), _('On'), _('on')) else "menu_off" if self._descr in (_('False'), _('false'), _('No'), _('no'), _("Disable"), _('disable'), _('Disabled'), _('disabled'), _('Off'), _('off'), _('None'), _('none')) else None
+			if pixmap:
+				return ('pixmap', switchPixmap[pixmap])
 		return ("text", self._descr)
 
 	# HTML
@@ -409,10 +448,9 @@ class ConfigBoolean(ConfigElement):
 	def getMulti(self, selected):
 		from config import config
 		from skin import switchPixmap
-		if self.graphic and config.usage.boolean_graphic.value and switchPixmap.get("menu_on", False) and switchPixmap.get("menu_off", False):
-			return ('pixmap', self.value and switchPixmap["menu_on"] or switchPixmap["menu_off"])
-		else:
-			return ("text", self.descriptions[self.value])
+		if self.graphic and config.usage.boolean_graphic.value in ("true", "only_bool") and "menu_on" in switchPixmap and "menu_off" in switchPixmap:
+			return ('pixmap', switchPixmap["menu_on" if self.value else "menu_off"])
+		return ("text", self.descriptions[self.value])
 
 	def tostring(self, value):
 		if not value:

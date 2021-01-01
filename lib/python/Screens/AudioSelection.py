@@ -6,7 +6,6 @@ from Screens.ChoiceBox import ChoiceBox
 from Components.ServiceEventTracker import ServiceEventTracker
 from Components.ActionMap import NumberActionMap
 from Components.ConfigList import ConfigListScreen
-from Components.ChoiceList import ChoiceList
 from Components.config import config, ConfigSubsection, getConfigListEntry, ConfigNothing, ConfigSelection, ConfigOnOff, ConfigYesNo
 from Components.Label import Label
 from Components.Sources.List import List
@@ -184,7 +183,7 @@ class AudioSelection(Screen, ConfigListScreen):
 				language = ""
 				selected = ""
 
-				if self.selectedSubtitle and x[:4] == self.selectedSubtitle[:4]:
+				if config.subtitles.show.value and self.selectedSubtitle and x[:4] == self.selectedSubtitle[:4]:
 					selected = "X"
 					selectedidx = idx
 
@@ -236,24 +235,12 @@ class AudioSelection(Screen, ConfigListScreen):
 		service = self.session.nav.getCurrentService()
 		subtitle = service and service.subtitle()
 		subtitlelist = subtitle and subtitle.getSubtitleList()
-		self.selectedSubtitle = None
-		if self.subtitlesEnabled():
-			self.selectedSubtitle = self.infobar.selected_subtitle
-			if self.selectedSubtitle and self.selectedSubtitle[:4] == (0,0,0,0):
-				self.selectedSubtitle = None
-			elif self.selectedSubtitle and not self.selectedSubtitle[:4] in (x[:4] for x in subtitlelist):
-				subtitlelist.append(self.selectedSubtitle)
+		self.selectedSubtitle = self.infobar.selected_subtitle
+		if self.selectedSubtitle and self.selectedSubtitle[:4] == (0,0,0,0):
+			self.selectedSubtitle = None
+		elif self.selectedSubtitle and not self.selectedSubtitle[:4] in (x[:4] for x in subtitlelist):
+			subtitlelist.append(self.selectedSubtitle)
 		return subtitlelist
-
-	def subtitlesEnabled(self):
-		try:
-			return self.infobar.subtitle_window.shown
-		except:
-			return False
-
-	def enableSubtitle(self, subtitle):
-		if self.infobar.selected_subtitle != subtitle:
-			self.infobar.enableSubtitle(subtitle)
 
 	def changeAC3Downmix(self, downmix):
 		config.av.downmix_ac3.value = downmix.getValue() == True
@@ -371,13 +358,14 @@ class AudioSelection(Screen, ConfigListScreen):
 				self.changeAudio(cur[0])
 				self.__updatedInfo()
 			if self.settings.menupage.getValue() == PAGE_SUBTITLES and cur[0] is not None:
-				if self.infobar.selected_subtitle and self.infobar.selected_subtitle[:4] == cur[0][:4]:
-					self.enableSubtitle(None)
+				if config.subtitles.show.value and self.infobar.selected_subtitle and self.infobar.selected_subtitle[:4] == cur[0][:4]:
+					self.infobar.enableSubtitle(None)
 					selectedidx = self["streams"].getIndex()
 					self.__updatedInfo()
 					self["streams"].setIndex(selectedidx)
 				else:
-					self.enableSubtitle(cur[0][:5])
+					config.subtitles.show.value = True
+					self.infobar.enableSubtitle(cur[0][:5])
 					self.__updatedInfo()
 			self.close(0)
 		elif self.focus == FOCUS_CONFIG:
@@ -407,7 +395,7 @@ class SubtitleSelection(AudioSelection):
 class QuickSubtitlesConfigMenu(ConfigListScreen, Screen):
 	skin = """
 	<screen position="50,50" size="480,305" title="Subtitle settings" backgroundColor="#7f000000" flags="wfNoBorder">
-		<widget name="config" position="5,5" size="470,275" font="Regular;18" zPosition="1" transparent="1" selectionPixmap="PLi-HD/buttons/sel.png" valign="center" />
+		<widget name="config" position="5,5" size="470,275" font="Regular;18" zPosition="1" transparent="1" selectionPixmap="buttons/sel.png" valign="center" />
 		<widget name="videofps" position="5,280" size="470,20" backgroundColor="secondBG" transparent="1" zPosition="1" font="Regular;16" valign="center" halign="left" foregroundColor="blue"/>
 	</screen>"""
 

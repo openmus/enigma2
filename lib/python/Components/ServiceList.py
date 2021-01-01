@@ -27,23 +27,23 @@ class ServiceList(GUIComponent):
 		GUIComponent.__init__(self)
 		self.l = eListboxServiceContent()
 
-		pic = LoadPixmap(cached=True, path=resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/folder.png"))
+		pic = LoadPixmap(cached=True, path=resolveFilename(SCOPE_CURRENT_SKIN, "icons/folder.png"))
 		pic and self.l.setPixmap(self.l.picFolder, pic)
-		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/marker.png"))
+		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/marker.png"))
 		pic and	self.l.setPixmap(self.l.picMarker, pic)
-		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/ico_dvb_s-fs8.png"))
+		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/ico_dvb_s-fs8.png"))
 		pic and	self.l.setPixmap(self.l.picDVB_S, pic)
-		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/ico_dvb_c-fs8.png"))
+		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/ico_dvb_c-fs8.png"))
 		pic and self.l.setPixmap(self.l.picDVB_C, pic)
-		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/ico_dvb_t-fs8.png"))
+		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/ico_dvb_t-fs8.png"))
 		pic and self.l.setPixmap(self.l.picDVB_T, pic)
-		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/ico_stream-fs8.png"))
+		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/ico_stream-fs8.png"))
 		pic and self.l.setPixmap(self.l.picStream, pic)
-		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/ico_service_group-fs8.png"))
+		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/ico_service_group-fs8.png"))
 		pic and self.l.setPixmap(self.l.picServiceGroup, pic)
-		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/icon_crypt.png"))
+		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/icon_crypt.png"))
 		pic and self.l.setPixmap(self.l.picCrypto, pic)
-		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "skin_default/icons/record.png"))
+		pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, "icons/record.png"))
 		pic and self.l.setPixmap(self.l.picRecord, pic)
 
 		self.root = None
@@ -51,6 +51,7 @@ class ServiceList(GUIComponent):
 		self.ItemHeight = 28
 		self.ServiceNameFont = parseFont("Regular;22", ((1,1),(1,1)))
 		self.ServiceInfoFont = parseFont("Regular;18", ((1,1),(1,1)))
+		self.ServiceNextInfoFont = parseFont("Regular;15", ((1,1),(1,1)))
 		self.ServiceNumberFont = parseFont("Regular;20", ((1,1),(1,1)))
 		self.progressBarWidth = 52
 		self.progressPercentWidth = 0
@@ -71,10 +72,14 @@ class ServiceList(GUIComponent):
 			self.l.setColor(eListboxServiceContent.serviceNotAvail, parseColor(value))
 		def foregroundColorEvent(value):
 			self.l.setColor(eListboxServiceContent.eventForeground, parseColor(value))
+		def foregroundColorNextEvent(value):
+			self.l.setColor(eListboxServiceContent.eventNextForeground, parseColor(value))
 		def colorServiceDescription(value):
 			self.l.setColor(eListboxServiceContent.eventForeground, parseColor(value))
 		def foregroundColorEventSelected(value):
 			self.l.setColor(eListboxServiceContent.eventForegroundSelected, parseColor(value))
+		def foregroundColorEventNextSelected(value):
+			self.l.setColor(eListboxServiceContent.eventForegroundNextSelected, parseColor(value))
 		def colorServiceDescriptionSelected(value):
 			self.l.setColor(eListboxServiceContent.eventForegroundSelected, parseColor(value))
 		def foregroundColorEventborder(value):
@@ -99,6 +104,10 @@ class ServiceList(GUIComponent):
 			self.l.setColor(eListboxServiceContent.eventForegroundFallback, parseColor(value))
 		def colorServiceDescriptionSelectedFallback(value):
 			self.l.setColor(eListboxServiceContent.eventForegroundSelectedFallback, parseColor(value))
+		def colorServiceNextDescriptionFallback(value):
+			self.l.setColor(eListboxServiceContent.eventNextForegroundFallback, parseColor(value))
+		def colorServiceNextDescriptionSelectedFallback(value):
+			self.l.setColor(eListboxServiceContent.eventNextForegroundSelectedFallback, parseColor(value))
 		def picServiceEventProgressbar(value):
 			pic = LoadPixmap(resolveFilename(SCOPE_CURRENT_SKIN, value))
 			pic and self.l.setPixmap(self.l.picServiceEventProgressbar, pic)
@@ -108,6 +117,9 @@ class ServiceList(GUIComponent):
 			self.ServiceNameFont = parseFont(value, ((1,1),(1,1)))
 		def serviceInfoFont(value):
 			self.ServiceInfoFont = parseFont(value, ((1,1),(1,1)))
+			self.ServiceNextInfoFont = parseFont(value, ((5,6),(1,1)))
+		#def serviceNextInfoFont(value):
+		#	self.ServiceNextInfoFont = parseFont(value, ((1,1),(1,1)))
 		def serviceNumberFont(value):
 			self.ServiceNumberFont = parseFont(value, ((1,1),(1,1)))
 		def progressbarHeight(value):
@@ -316,17 +328,21 @@ class ServiceList(GUIComponent):
 		self.l.setCurrentMarked(state)
 
 	def setMode(self, mode):
+		two_lines_val = config.usage.servicelist_twolines.value
+		show_two_lines = int(two_lines_val) and mode == self.MODE_FAVOURITES
 		if config.usage.servicelist_number_of_services.value == "by skin":
-			ItemHeight = self.ItemHeight
+			ItemHeight = self.ItemHeight * (2 if show_two_lines else 1)
 			ServiceNameFont = self.ServiceNameFont
 			ServiceNumberFont = self.ServiceNumberFont
 			ServiceInfoFont = self.ServiceInfoFont
+			ServiceNextInfoFont = self.ServiceNextInfoFont
 		else:
-			ItemHeight = int(self.instance.size().height() / int(config.usage.servicelist_number_of_services.value))
+			ItemHeight = int(self.instance.size().height() / int(config.usage.servicelist_number_of_services.value)) * (2 if show_two_lines else 1)
 			FontFactor = ItemHeight * 100 / self.ItemHeight
-			ServiceNameFont = gFont(self.ServiceNameFont.family, int(self.ServiceNameFont.pointSize * FontFactor/100))
-			ServiceNumberFont = gFont(self.ServiceNumberFont.family, int(self.ServiceNumberFont.pointSize * FontFactor/100))
-			ServiceInfoFont = gFont(self.ServiceInfoFont.family, int(self.ServiceInfoFont.pointSize * FontFactor/100))
+			ServiceNameFont = gFont(self.ServiceNameFont.family, int(self.ServiceNameFont.pointSize * FontFactor/(200 if show_two_lines else 100)))
+			ServiceNumberFont = gFont(self.ServiceNumberFont.family, int(self.ServiceNumberFont.pointSize * FontFactor/(200 if show_two_lines else 100)))
+			ServiceInfoFont = gFont(self.ServiceInfoFont.family, int(self.ServiceInfoFont.pointSize * FontFactor/(200 if show_two_lines else 100)))
+			ServiceNextInfoFont = gFont(self.ServiceNextInfoFont.family, int(self.ServiceNextInfoFont.pointSize * FontFactor/(200 if show_two_lines else 100)))
 
 		self.mode = mode
 		self.l.setItemHeight(ItemHeight)
@@ -365,13 +381,18 @@ class ServiceList(GUIComponent):
 		self.l.setElementFont(self.l.celServiceName, ServiceNameFont)
 		self.l.setElementFont(self.l.celServiceNumber, ServiceNumberFont)
 		self.l.setElementFont(self.l.celServiceInfo, ServiceInfoFont)
+		if show_two_lines and two_lines_val == "2":
+			self.l.setElementFont(self.l.celServiceNextInfo, ServiceNextInfoFont)
+			nextTitle = _("NEXT") + ":  "
+			self.l.setNextTitle(nextTitle)
 		if "perc" in config.usage.show_event_progress_in_servicelist.value:
 			self.l.setElementFont(self.l.celServiceEventProgressbar, ServiceInfoFont)
+		self.l.setShowTwoLines(show_two_lines and int(two_lines_val) or 0)
 		self.l.setHideNumberMarker(config.usage.hide_number_markers.value)
 		self.l.setServiceTypeIconMode(int(config.usage.servicetype_icon_mode.value))
 		self.l.setCryptoIconMode(int(config.usage.crypto_icon_mode.value))
 		self.l.setRecordIndicatorMode(int(config.usage.record_indicator_mode.value))
-		self.l.setColumnWidth(int(config.usage.servicelist_column.value))
+		self.l.setColumnWidth(-1 if show_two_lines else int(config.usage.servicelist_column.value))
 
 	def selectionEnabled(self, enabled):
 		if self.instance is not None:

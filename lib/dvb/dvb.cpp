@@ -840,8 +840,9 @@ RESULT eDVBResourceManager::allocateFrontend(ePtr<eDVBAllocatedFrontend> &fe, eP
 {
 	eSmartPtrList<eDVBRegisteredFrontend> &frontends = simulate ? m_simulate_frontend : m_frontend;
 	eDVBRegisteredFrontend *best, *fbc_fe, *best_fbc_fe;
-	int bestval, foundone, current_fbc_setid, fbc_setid, c;
-	bool check_fbc_leaf_linkable;
+	int bestval, foundone, current_fbc_setid, c;
+	bool check_fbc_leaf_linkable, is_configured_sat;
+	long link;
 
 	fbc_fe  = NULL;
 	best_fbc_fe = NULL;
@@ -850,15 +851,15 @@ RESULT eDVBResourceManager::allocateFrontend(ePtr<eDVBAllocatedFrontend> &fe, eP
 	foundone = 0;
 	check_fbc_leaf_linkable = false;
 	current_fbc_setid = -1;
-	c = 0;
 
 	for (eSmartPtrList<eDVBRegisteredFrontend>::iterator i(frontends.begin()); i != frontends.end(); ++i)
 	{
+		c = 0;
+		is_configured_sat = false;
 		fbc_fe = NULL;
-
 		if (i->m_frontend->is_FBCTuner() && m_fbcmng->CanLink(*i))
 		{
-			fbc_setid = m_fbcmng->GetFBCSetID(i->m_frontend->getSlotID());
+			int fbc_setid = m_fbcmng->GetFBCSetID(i->m_frontend->getSlotID());
 
 			if (fbc_setid != current_fbc_setid)
 			{
@@ -874,7 +875,27 @@ RESULT eDVBResourceManager::allocateFrontend(ePtr<eDVBAllocatedFrontend> &fe, eP
 			}
 		}
 		else
-			c = i->m_frontend->isCompatibleWith(feparm);
+		{
+			if (i->m_inuse)
+			{
+				i->m_frontend->getData(eDVBFrontend::SATPOS_DEPENDS_PTR, link);
+				if (link != -1)
+					is_configured_sat = true;
+				else
+				{
+					i->m_frontend->getData(eDVBFrontend::ADVANCED_SATPOSDEPENDS_ROOT, link);
+					if (link != -1)
+						is_configured_sat = true;
+					else
+					{
+						i->m_frontend->getData(eDVBFrontend::ADVANCED_SATPOSDEPENDS_LINK, link);
+						if (link != -1)
+							is_configured_sat = true;
+					}
+				}
+			}
+			c = i->m_frontend->isCompatibleWith(feparm, is_configured_sat);
+		}
 
 		if (c)	/* if we have at least one frontend which is compatible with the source, flag this. */
 			foundone = 1;
@@ -900,7 +921,6 @@ RESULT eDVBResourceManager::allocateFrontend(ePtr<eDVBAllocatedFrontend> &fe, eP
 	}
 
 	fe = 0;
-
 	if (foundone)
 		return errAllSourcesBusy;
 	else
@@ -913,6 +933,15 @@ RESULT eDVBResourceManager::allocateFrontendByIndex(ePtr<eDVBAllocatedFrontend> 
 	for (eSmartPtrList<eDVBRegisteredFrontend>::iterator i(m_frontend.begin()); i != m_frontend.end(); ++i)
 		if (!i->m_inuse && i->m_frontend->getSlotID() == slot_index)
 		{
+			// check if another slot advanced satpos to this is in use
+			long link;
+			i->m_frontend->getData(eDVBFrontend::ADVANCED_SATPOSDEPENDS_ROOT, link);
+			if ( link != -1 )
+				{
+					eDebug("[eDVBResourceManager] another advanced satpos depending is in use.. so allocateFrontendByIndex not possible!");
+					err = errAllSourcesBusy;
+					goto alloc_fe_by_id_not_possible;
+				}
 			// check if another slot linked to this is in use
 			long tmp;
 			i->m_frontend->getData(eDVBFrontend::SATPOS_DEPENDS_PTR, tmp);
@@ -1268,7 +1297,7 @@ int eDVBResourceManager::canAllocateFrontend(ePtr<iDVBFrontendParameters> &fepar
 {
 	eSmartPtrList<eDVBRegisteredFrontend> &frontends = simulate ? m_simulate_frontend : m_frontend;
 	ePtr<eDVBRegisteredFrontend> best;
-	int bestval, current_fbc_setid, fbc_setid, c;
+	int bestval, current_fbc_setid, c;
 	bool check_fbc_leaf_linkable;
 
 	bestval = 0;
@@ -1279,9 +1308,10 @@ int eDVBResourceManager::canAllocateFrontend(ePtr<iDVBFrontendParameters> &fepar
 	{
 		if (!i->m_inuse)
 		{
+			c = 0;
 			if(i->m_frontend->is_FBCTuner() && m_fbcmng->CanLink(*i))
 			{
-				fbc_setid = m_fbcmng->GetFBCSetID(i->m_frontend->getSlotID());
+				int fbc_setid = m_fbcmng->GetFBCSetID(i->m_frontend->getSlotID());
 
 				if (fbc_setid != current_fbc_setid)
 				{
@@ -1701,9 +1731,9 @@ static inline long long align(long long x, int align)
 
 static size_t diff_upto(off_t high, off_t low, size_t max)
 {
-	off_t diff = high - low;
+	size_t diff = static_cast<size_t>(high-low);
 	if (diff < max)
-		return (size_t)diff;
+		return diff;
 	return max;
 }
 

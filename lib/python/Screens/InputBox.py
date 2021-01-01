@@ -11,12 +11,11 @@ from time import time
 class InputBox(Screen):
 	def __init__(self, session, title = "", windowTitle = None, useableChars = None, **kwargs):
 		Screen.__init__(self, session)
-		self.setScreenPathMode(None)
 		self["text"] = Label(title)
 		self["input"] = Input(**kwargs)
 		if windowTitle is None:
 			windowTitle = _("Input")
-		self.onShown.append(boundFunction(self.setTitle, windowTitle))
+		self.setTitle(windowTitle, showPath=False)
 		if useableChars is not None:
 			self["input"].setUseableChars(useableChars)
 
@@ -105,10 +104,10 @@ class PinInput(InputBox):
 				remainingSeconds = int(remaining % 60)
 				messageText = _("You have to wait %s!") % (str(remainingMinutes) + " " + _("minutes") + ", " + str(remainingSeconds) + " " + _("seconds"))
 				if service and simple:
-					AddPopup(messageText, type = MessageBox.TYPE_ERROR, timeout = 3)
+					AddPopup(messageText, type=MessageBox.TYPE_ERROR, timeout=5)
 					self.closePinCancel()
 				else:
-					self.onFirstExecBegin.append(boundFunction(self.session.openWithCallback, self.closePinCancel, MessageBox, messageText, MessageBox.TYPE_ERROR, timeout = 3))
+					self.onFirstExecBegin.append(boundFunction(self.session.openWithCallback, self.closePinCancel, MessageBox, messageText, MessageBox.TYPE_ERROR, timeout=5))
 			else:
 				self.setTries(3)
 

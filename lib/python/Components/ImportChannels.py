@@ -1,10 +1,11 @@
-import threading, urllib2, os, shutil
+import threading, urllib2, os, shutil, tempfile
 from json import loads
 from enigma import eDVBDB, eEPGCache
 from Screens.MessageBox import MessageBox
-from config import config
+from config import config, ConfigText
 from Tools import Notifications
 from base64 import encodestring
+import xml.etree.ElementTree as et
 
 settingfiles = ('lamedb', 'bouquets.', 'userbouquet.', 'blacklist', 'whitelist', 'alternatives.')
 
@@ -21,27 +22,53 @@ class ImportChannels():
 				self.url = "%s:%s" % (self.url, config.usage.remote_fallback_openwebif_port.value)
 				if config.usage.remote_fallback_openwebif_userid.value and config.usage.remote_fallback_openwebif_password.value:
 					self.header = "Basic %s" % encodestring("%s:%s" % (config.usage.remote_fallback_openwebif_userid.value, config.usage.remote_fallback_openwebif_password.value)).strip()
+			self.remote_fallback_import = config.usage.remote_fallback_import.value
 			self.thread = threading.Thread(target=self.threaded_function, name="ChannelsImport")
 			self.thread.start()
 
-	def getUrl(self, url):
+	def getUrl(self, url, timeout=5):
 		request = urllib2.Request(url)
 		if self.header:
 			request.add_header("Authorization", self.header)
-		return urllib2.urlopen(request, timeout=5)
+		return urllib2.urlopen(request, timeout=timeout)
+
+	def getTerrestrialUrl(self):
+		url = config.usage.remote_fallback_dvb_t.value
+		return url[:url.rfind(":")] if url else self.url
+
+	def getFallbackSettings(self):
+		return self.getUrl("%s/web/settings" % self.getTerrestrialUrl()).read()
+
+	def getFallbackSettingsValue(self, settings, e2settingname):
+		root = et.fromstring(settings)
+		for e2setting in root:
+			if e2settingname in e2setting[0].text:
+				return e2setting[1].text
+		return ""
+
+	def getTerrestrialRegion(self, settings):
+		description = ""
+		descr = self.getFallbackSettingsValue(settings, ".terrestrial")
+		if "Europe" in descr:
+			description = "fallback DVB-T/T2 Europe"
+		if "Australia" in descr:
+			description = "fallback DVB-T/T2 Australia"
+		config.usage.remote_fallback_dvbt_region.value = description
 
 	def threaded_function(self):
-		if "epg" in config.usage.remote_fallback_import.value:
+		settings = self.getFallbackSettings()
+		self.getTerrestrialRegion(settings)
+		self.tmp_dir = tempfile.mkdtemp(prefix="ImportChannels")
+		if "epg" in self.remote_fallback_import:
 			print "Writing epg.dat file on sever box"
 			try:
-				self.getUrl("%s/web/saveepg" % self.url).read()
+				self.getUrl("%s/web/saveepg" % self.url, timeout=30).read()
 			except:
 				self.ImportChannelsDone(False, _("Error when writing epg.dat on server"))
 				return
 			print "[Import Channels] Get EPG Location"
 			try:
-				epgdatfile = [x for x in self.getUrl("%s/file?file=/etc/enigma2/settings" % self.url).readlines() if x.startswith('config.misc.epgcache_filename=')]
-				epgdatfile = epgdatfile and epgdatfile[0].split('=')[1].strip() or "/hdd/epg.dat"
+				epgdatfile = self.getFallbackSettingsValue(settings, "config.misc.epgcache_filename") or "/hdd/epg.dat"
 				try:
 					files = [file for file in loads(self.getUrl("%s/file?dir=%s" % (self.url, os.path.dirname(epgdatfile))).read())["files"] if os.path.basename(file).startswith(os.path.basename(epgdatfile))]
 				except:
@@ -53,47 +80,41 @@ class ImportChannels():
 			if epg_location:
 				print "[Import Channels] Copy EPG file..."
 				try:
-					open("/hdd/epg.dat" if os.path.isdir("/hdd") else "/epg.dat", "wb").write(self.getUrl("%s/file?file=%s" % (self.url, epg_location)).read())
+					open(os.path.join(self.tmp_dir, "epg.dat"), "wb").write(self.getUrl("%s/file?file=%s" % (self.url, epg_location)).read())
+					shutil.move(os.path.join(self.tmp_dir, "epg.dat"), config.misc.epgcache_filename.value)
 				except:
 					self.ImportChannelsDone(False, _("Error while retreiving epg.dat from server"))
+					return
 			else:
 				self.ImportChannelsDone(False, _("No epg.dat file found server"))
-		if "channels" in config.usage.remote_fallback_import.value:
-			try:
-				os.mkdir("/tmp/tmp")
-			except:
-				pass
+		if "channels" in self.remote_fallback_import:
 			print "[Import Channels] reading dir"
 			try:
 				files = [file for file in loads(self.getUrl("%s/file?dir=/etc/enigma2" % self.url).read())["files"] if os.path.basename(file).startswith(settingfiles)]
-				count = 0
 				for file in files:
-					count += 1
 					file = file.encode("UTF-8")
 					print "[Import Channels] Downloading %s" % file
-					destination = "/tmp/tmp"
 					try:
-						open("%s/%s" % (destination, os.path.basename(file)), "wb").write(self.getUrl("%s/file?file=%s" % (self.url, file)).read())
+						open(os.path.join(self.tmp_dir, os.path.basename(file)), "wb").write(self.getUrl("%s/file?file=%s" % (self.url, file)).read())
 					except:
 						self.ImportChannelsDone(False, _("ERROR downloading file %s") % file)
 						return
 			except:
 				self.ImportChannelsDone(False, _("Error %s") % self.url)
 				return
-
 			print "[Import Channels] Removing files..."
 			files = [file for file in os.listdir("/etc/enigma2") if file.startswith(settingfiles)]
 			for file in files:
-				os.remove("/etc/enigma2/%s" % file)
+				os.remove(os.path.join("/etc/enigma2", file))
 			print "[Import Channels] copying files..."
-			files = [x for x in os.listdir("/tmp/tmp") if x.startswith(settingfiles)]
+			files = [x for x in os.listdir(self.tmp_dir) if x.startswith(settingfiles)]
 			for file in files:
-				shutil.move("/tmp/tmp/%s" % file, "/etc/enigma2/%s" % file)
-			os.rmdir("/tmp/tmp")
-		self.ImportChannelsDone(True)
+				shutil.move(os.path.join(self.tmp_dir, file), os.path.join("/etc/enigma2", file))
+		self.ImportChannelsDone(True, {"channels": _("Channels"), "epg": _("EPG"), "channels_epg": _("Channels and EPG")}[self.remote_fallback_import])
 
-	def ImportChannelsDone(self, flag, errorstring=None):
+	def ImportChannelsDone(self, flag, message=None):
+		shutil.rmtree(self.tmp_dir, True)
 		if flag:
-			Notifications.AddNotificationWithID("ChannelsImportOK", MessageBox, _("Channels from fallback tuner imported"), type=MessageBox.TYPE_INFO, timeout=5)
+			Notifications.AddNotificationWithID("ChannelsImportOK", MessageBox, _("%s imported from fallback tuner") % message, type=MessageBox.TYPE_INFO, timeout=5)
 		else:
-			Notifications.AddNotificationWithID("ChannelsImportNOK", MessageBox, _("Channels from fallback tuner failed %s") % errorstring, type=MessageBox.TYPE_ERROR, timeout=5)
+			Notifications.AddNotificationWithID("ChannelsImportNOK", MessageBox, _("Import from fallback tuner failed, %s") % message, type=MessageBox.TYPE_ERROR, timeout=5)
