@@ -78,6 +78,15 @@ AC_ARG_WITH(7segment,
 	[[TEXTSKIN="7segment"]],
 	[[TEXTSKIN="default"]]
 )
+AC_ARG_WITH(colorlcd400,
+	AC_HELP_STRING([--with-colorlcd400], [use 400x176 16bpp color display, yes or no]),
+	[[withcolorlcd400=$withval]],
+	[[withcolorlcd400=no]]
+)
+if test x"$withcolorlcd400" != xno ; then
+	AC_DEFINE(HAVE_COLORLCD400, 1,[Define when using a 400x176 color display device])
+fi
+AM_CONDITIONAL(HAVE_COLORLCD400, test x"$withcolorlcd400" != xno)
 AC_SUBST(TEXTSKIN)
 
 if test `echo "$BOXTYPE" | cut -b 1-7` == "mbmicro"; then
