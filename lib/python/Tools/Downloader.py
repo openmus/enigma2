@@ -1,21 +1,20 @@
-from __future__ import print_function
 from twisted.web import client
-from twisted.internet import reactor, defer, ssl
-from twisted.internet._sslverify import ClientTLSOptions
+from twisted.internet import reactor, defer
+from urlparse import urlparse
 
 class HTTPProgressDownloader(client.HTTPDownloader):
-	def __init__(self, url, outfile, headers=None, agent="Dreambox HTTP Downloader"):
-		client.HTTPDownloader.__init__(self, url, outfile, headers=headers, agent=agent)
-		self.status = None
-		self.progress_callback = None
+	def __init__(self, url, outfile, headers=None):
+		client.HTTPDownloader.__init__(self, url, outfile, headers=headers, agent="Enigma2 HbbTV/1.1.1 (+PVR+RTSP+DL;OpenPLi;;;)")
+		self.status = self.progress_callback = self.error_callback = self.end_callback = None
 		self.deferred = defer.Deferred()
 
 	def noPage(self, reason):
 		if self.status == "304":
-			print(reason.getErrorMessage())
 			client.HTTPDownloader.page(self, "")
 		else:
 			client.HTTPDownloader.noPage(self, reason)
+		if self.error_callback:
+			self.error_callback(reason.getErrorMessage(), self.status)
 
 	def gotHeaders(self, headers):
 		if self.status == "200":
@@ -34,38 +33,23 @@ class HTTPProgressDownloader(client.HTTPDownloader):
 		return client.HTTPDownloader.pagePart(self, packet)
 
 	def pageEnd(self):
-		return client.HTTPDownloader.pageEnd(self)
-
-import six.moves.urllib.parse
-def url_parse(url, defaultPort=None):
-	parsed = six.moves.urllib.parse.urlparse(url)
-	scheme = parsed[0]
-	path = six.moves.urllib.parse.urlunparse(('', '') + parsed[2:])
-	if defaultPort is None:
-		if scheme == 'https':
-			defaultPort = 443
-		else:
-			defaultPort = 80
-	host, port = parsed[1], defaultPort
-	if ':' in host:
-		host, port = host.split(':')
-		port = int(port)
-	return scheme, host, port, path
+		ret = client.HTTPDownloader.pageEnd(self)
+		if self.end_callback:
+			self.end_callback()
+		return ret
 
 class downloadWithProgress:
 	def __init__(self, url, outputfile, contextFactory=None, *args, **kwargs):
-		scheme, host, port, path = url_parse(url)
+		parsed = urlparse(url)
+		scheme = parsed.scheme
+		host = parsed.hostname
+		port = parsed.port or (443 if scheme == 'https' else 80)
 		self.factory = HTTPProgressDownloader(url, outputfile, *args, **kwargs)
 		if scheme == 'https':
+			from twisted.internet import ssl
 			if contextFactory is None:
-				class TLSSNIContextFactory(ssl.ClientContextFactory):
-					def getContext(self, hostname=None, port=None):
-						ctx = ssl.ClientContextFactory.getContext(self)
-						ClientTLSOptions(host, ctx)
-						return ctx
-				contextFactory = TLSSNIContextFactory()
-				self.connection = reactor.connectSSL(host, port, self.factory, contextFactory)
-
+				contextFactory = ssl.ClientContextFactory()
+			self.connection = reactor.connectSSL(host, port, self.factory, contextFactory)
 		else:
 			self.connection = reactor.connectTCP(host, port, self.factory)
 
@@ -74,9 +58,14 @@ class downloadWithProgress:
 
 	def stop(self):
 		if self.connection:
-			print("[stop]")
+			self.factory.progress_callback = self.factory.end_callback = self.factory.error_callback = None
 			self.connection.disconnect()
 
 	def addProgress(self, progress_callback):
-		print("[addProgress]")
 		self.factory.progress_callback = progress_callback
+
+	def addEnd(self, end_callback):
+		self.factory.end_callback = end_callback
+
+	def addError(self, error_callback):
+		self.factory.error_callback = error_callback

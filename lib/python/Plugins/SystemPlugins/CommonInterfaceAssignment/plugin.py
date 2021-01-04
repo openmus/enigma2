@@ -1,40 +1,41 @@
-from __future__ import division
-from __future__ import print_function
 from Screens.Screen import Screen
-from Screens.ChannelSelection import ChannelSelectionBase
+from Screens.ChannelSelection import *
+from Screens.ChoiceBox import ChoiceBox
+from Screens.Standby import TryQuitMainloop
+from Screens.MessageBox import MessageBox
 from Components.ActionMap import ActionMap
+from Components.Sources.List import List
 from Components.Sources.StaticText import StaticText
-from Components.config import config, ConfigNothing
+from Components.config import ConfigNothing
 from Components.ConfigList import ConfigList
-from Components.NimManager import nimmanager
+from Components.Label import Label
 from Components.SelectionList import SelectionList
+from Components.MenuList import MenuList
+from Components.SystemInfo import SystemInfo
 from ServiceReference import ServiceReference
 from Plugins.Plugin import PluginDescriptor
-from xml.etree.cElementTree import parse as ci_parse
-from enigma import eDVBCI_UI, eDVBCIInterfaces, eEnv, eServiceReference, eServiceCenter
+from xml.etree.cElementTree import parse
+from enigma import eDVBCI_UI, eDVBCIInterfaces, eEnv, eServiceCenter
+from Tools.BoundFunction import boundFunction
+from Tools.CIHelper import cihelper
+from Tools.XMLTools import stringToXML
 
-from os import path as os_path, unlink as os_unlink, fsync
-from xml.sax.saxutils import escape as xml_escape, unescape as xml_unescape
-from six.moves import range
+import os
 
 class CIselectMainMenu(Screen):
 	skin = """
-		<screen name="CIselectMainMenu" position="center,120" size="820,520" title="CI Assignment">
-			<ePixmap pixmap="skin_default/buttons/red.png" position="10,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/green.png" position="210,5" size="200,40" alphatest="on" />
-			<widget source="key_red" render="Label" position="10,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_green" render="Label" position="210,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<eLabel position="10,50" size="800,1" backgroundColor="grey" />
-			<widget name="CiList" position="10,60" size="800,450" enableWrapAround="1" scrollbarMode="showOnDemand" />
+		<screen name="CIselectMainMenu" position="center,center" size="500,250" title="CI assignment" >
+			<ePixmap pixmap="buttons/red.png" position="0,0" size="140,40" alphatest="on" />
+			<ePixmap pixmap="buttons/green.png" position="140,0" size="140,40" alphatest="on" />
+			<widget source="key_red" render="Label" position="0,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" />
+			<widget source="key_green" render="Label" position="140,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" />
+			<widget name="CiList" position="5,50" size="490,200" scrollbarMode="showOnDemand" />
 		</screen>"""
 
 	def __init__(self, session, args = 0):
-
 		Screen.__init__(self, session)
-
 		self["key_red"] = StaticText(_("Close"))
 		self["key_green"] = StaticText(_("Edit"))
-
 		self["actions"] = ActionMap(["ColorActions","SetupActions"],
 			{
 				"green": self.greenPressed,
@@ -43,25 +44,26 @@ class CIselectMainMenu(Screen):
 				"cancel": self.close
 			}, -1)
 
-		NUM_CI=eDVBCIInterfaces.getInstance().getNumOfSlots()
+		NUM_CI = SystemInfo["CommonInterface"]
 
-		print("[CI_Wizzard] FOUND %d CI Slots " % NUM_CI)
+		print "[CI_Wizzard] FOUND %d CI Slots " % NUM_CI
 
 		self.dlg = None
 		self.state = { }
 		self.list = [ ]
-		if NUM_CI > 0:
+		if  NUM_CI and NUM_CI > 0:
 			for slot in range(NUM_CI):
 				state = eDVBCI_UI.getInstance().getState(slot)
-				if state == 0:
-					appname = _("Slot %d") %(slot+1) + " - " + _("no module found")
-				elif state == 1:	
-					appname = _("Slot %d") %(slot+1) + " - " + _("init modules")
-				elif state == 2:
-					appname = _("Slot %d") %(slot+1) + " - " + eDVBCI_UI.getInstance().getAppName(slot)
 				if state != -1:
+					appname = _("Slot %d") %(slot+1) + " - " + _("unknown error")
+					if state == 0:
+						appname = _("Slot %d") %(slot+1) + " - " + _("no module found")
+					elif state == 1:
+						appname = _("Slot %d") %(slot+1) + " - " + _("init modules")
+					elif state == 2:
+						appname = _("Slot %d") %(slot+1) + " - " + eDVBCI_UI.getInstance().getAppName(slot)
 					self.list.append( (appname, ConfigNothing(), 0, slot) )
-		if not self.list:
+		else:
 			self.list.append( (_("no CI slots found") , ConfigNothing(), 1, -1) )
 
 		menuList = ConfigList(self.list)
@@ -79,78 +81,67 @@ class CIselectMainMenu(Screen):
 			action = cur[2]
 			slot = cur[3]
 			if action == 1:
-				print("[CI_Wizzard] there is no CI Slot in your receiver")
+				print "[CI_Wizzard] there is no CI Slot in your receiver"
 			else:
-				print("[CI_Wizzard] selected CI Slot : %d" % slot)
+				print "[CI_Wizzard] selected CI Slot : %d" % slot
 				if config.usage.setup_level.index > 1: # advanced
 					self.session.open(CIconfigMenu, slot)
 				else:
 					self.session.open(easyCIconfigMenu, slot)
 
-	"""def yellowPressed(self): # unused
-		NUM_CI=eDVBCIInterfaces.getInstance().getNumOfSlots()
-		print "[CI_Check] FOUND %d CI Slots " % NUM_CI
-		if NUM_CI > 0:
-			for ci in range(NUM_CI):
-				print eDVBCIInterfaces.getInstance().getDescrambleRules(ci)"""
-
-
 class CIconfigMenu(Screen):
 	skin = """
-		<screen name="CIconfigMenu" position="center,120" size="820,520" title="CI Assignment">
-			<ePixmap pixmap="skin_default/buttons/red.png" position="10,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/green.png" position="210,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/yellow.png" position="410,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/blue.png" position="610,5" size="200,40" alphatest="on" />
-			<widget source="key_red" render="Label" position="10,5" size="200,40" zPosition="1" font="Regular;19" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_green" render="Label" position="210,5" size="200,40" zPosition="1" font="Regular;19" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_yellow" render="Label" position="410,5" size="200,40" zPosition="1" font="Regular;19" halign="center" valign="center" backgroundColor="#a08500" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_blue" render="Label" position="610,5" size="200,40" zPosition="1" font="Regular;19" halign="center" valign="center" backgroundColor="#18188b" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<eLabel position="10,50" size="800,1" backgroundColor="grey" />
-			<widget source="CAidList_desc" render="Label" position="10,55" size="800,27" font="Regular;22" />
-			<eLabel position="10,85" size="800,1" backgroundColor="grey" />
-			<widget source="CAidList" render="Label" position="10,95" size="800,90" font="Regular;20" />
-			<eLabel position="10,200" size="800,1" backgroundColor="grey" />
-			<widget source="ServiceList_desc" render="Label" position="10,205" size="800,27" font="Regular;22" />
-			<eLabel position="10,235" size="800,1" backgroundColor="grey" />
-			<widget name="ServiceList" position="10,245" size="800,240" enableWrapAround="1" scrollbarMode="showOnDemand" />
-			<widget source="ServiceList_info" render="Label" position="10,245" size="800,240" font="Regular;22" />
+		<screen name="CIconfigMenu" position="center,center" size="560,440" title="CI assignment" >
+			<ePixmap pixmap="buttons/red.png" position="0,0" size="140,40" alphatest="on" />
+			<ePixmap pixmap="buttons/green.png" position="140,0" size="140,40" alphatest="on" />
+			<ePixmap pixmap="buttons/yellow.png" position="280,0" size="140,40" alphatest="on" />
+			<ePixmap pixmap="buttons/blue.png" position="420,0" size="140,40" alphatest="on" />
+			<widget source="key_red" render="Label" position="0,0" zPosition="1" size="140,40" font="Regular;18" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" />
+			<widget source="key_green" render="Label" position="140,0" zPosition="1" size="140,40" font="Regular;18" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" />
+			<widget source="key_yellow" render="Label" position="280,0" zPosition="1" size="140,40" font="Regular;18" halign="center" valign="center" backgroundColor="#a08500" transparent="1" />
+			<widget source="key_blue" render="Label" position="420,0" zPosition="1" size="140,40" font="Regular;18" halign="center" valign="center" backgroundColor="#18188b" transparent="1" />
+			<widget source="CAidList_desc" render="Label" position="5,50" size="550,22" font="Regular;20"  backgroundColor="#25062748" transparent="1" />
+			<widget source="CAidList" render="Label" position="5,80" size="550,45" font="Regular;20"  backgroundColor="#25062748" transparent="1" />
+			<ePixmap pixmap="div-h.png" position="0,125" zPosition="1" size="560,2" />
+			<widget source="ServiceList_desc" render="Label" position="5,130" size="550,22" font="Regular;20" backgroundColor="#25062748" transparent="1"  />
+			<widget name="ServiceList" position="5,160" size="550,250" zPosition="1" scrollbarMode="showOnDemand" />
+			<widget source="ServiceList_info" render="Label" position="5,160" size="550,250" zPosition="2" font="Regular;20" backgroundColor="#25062748" transparent="1"  />
 		</screen>"""
 
 	def __init__(self, session, ci_slot="9"):
 
 		Screen.__init__(self, session)
-		self.ci_slot=ci_slot
+		self.ci_slot = ci_slot
 		self.filename = eEnv.resolve("${sysconfdir}/enigma2/ci") + str(self.ci_slot) + ".xml"
 
 		self["key_red"] = StaticText(_("Delete"))
-		self["key_green"] = StaticText(_("add Service"))
-		self["key_yellow"] = StaticText(_("add Provider"))
-		self["key_blue"] = StaticText(_("select CAId"))
-		self["CAidList_desc"] = StaticText(_("assigned CAIds:"))
+		self["key_green"] = StaticText(_("Add service"))
+		self["key_yellow"] = StaticText(_("Add provider"))
+		self["key_blue"] = StaticText(_("Select CAId"))
+		self["CAidList_desc"] = StaticText(_("Assigned CAIds:"))
 		self["CAidList"] = StaticText()
-		self["ServiceList_desc"] = StaticText(_("assigned Services/Provider:"))
+		self["ServiceList_desc"] = StaticText(_("Assigned services/provider:"))
 		self["ServiceList_info"] = StaticText()
 
-		self["actions"] = ActionMap(["ColorActions","SetupActions"],
+		self["actions"] = ActionMap(["ColorActions","SetupActions", "MenuActions"],
 			{
 				"green": self.greenPressed,
 				"red": self.redPressed,
 				"yellow": self.yellowPressed,
 				"blue": self.bluePressed,
+				"menu": self.menuPressed,
 				"cancel": self.cancel
 			}, -1)
 
-		print("[CI_Wizzard_Config] Configuring CI Slots : %d  " % self.ci_slot)
+		print "[CI_Wizzard_Config] Configuring CI Slots : %d  " % self.ci_slot
 
-		i=0
-		self.caidlist=[]
-		print(eDVBCIInterfaces.getInstance().readCICaIds(self.ci_slot))
+		i = 0
+		self.caidlist = []
 		for caid in eDVBCIInterfaces.getInstance().readCICaIds(self.ci_slot):
-			i+=1
+			i += 1
 			self.caidlist.append((str(hex(int(caid))),str(caid),i))
 
-		print("[CI_Wizzard_Config_CI%d] read following CAIds from CI: %s" %(self.ci_slot, self.caidlist))
+		print "[CI_Wizzard_Config_CI%d] read following CAIds from CI: %s" %(self.ci_slot, self.caidlist)
 
 		self.selectedcaid = []
 		self.servicelist = []
@@ -164,7 +155,7 @@ class CIconfigMenu(Screen):
 		self.loadXML()
 		# if config mode !=advanced autoselect any caid
 		if config.usage.setup_level.index <= 1: # advanced
-			self.selectedcaid=self.caidlist
+			self.selectedcaid = self.caidlist
 			self.finishedCAidSelection(self.selectedcaid)
 		self.onShown.append(self.setWindowTitle)
 
@@ -183,16 +174,33 @@ class CIconfigMenu(Screen):
 	def bluePressed(self):
 		self.session.openWithCallback(self.finishedCAidSelection, CAidSelect, self.caidlist, self.selectedcaid)
 
+	def menuPressed(self):
+		if os.path.exists(self.filename):
+			self.session.openWithCallback(self.deleteXMLfile, MessageBox, _("Delete file") + " " + self.filename + "?", MessageBox.TYPE_YESNO)
+
+	def deleteXMLfile(self, answer):
+		if answer:
+			try:
+				os.remove(self.filename)
+			except:
+				print "[CI_Config_CI%d] error remove xml..." % self.ci_slot
+			else:
+				self.session.openWithCallback(self.restartGui, MessageBox, _("Restart GUI now?"), MessageBox.TYPE_YESNO)
+
+	def restartGui(self, answer):
+		if answer:
+			self.session.open(TryQuitMainloop, 3)
+
 	def cancel(self):
 		self.saveXML()
-		activate_all(self)
+		cihelper.load_ci_assignment(force=True)
 		self.close()
 
 	def setServiceListInfo(self):
 		if len(self.servicelist):
 			self["ServiceList_info"].setText("")
 		else:
-			self["ServiceList_info"].setText(_("no Services/Providers selected"))
+			self["ServiceList_info"].setText(_("No services/providers selected"))
 
 	def delete(self):
 		cur = self["ServiceList"].getCurrent()
@@ -202,47 +210,74 @@ class CIconfigMenu(Screen):
 		self.setServiceListInfo()
 
 	def finishedChannelSelection(self, *args):
-		if len(args):
-			ref=args[0]
-			service_ref = ServiceReference(ref)
-			service_name = service_ref.getServiceName()
-			if find_in_list(self.servicelist, service_name, 0)==False:
-				split_ref=service_ref.ref.toString().split(":")
-				if split_ref[0] == "1":#== dvb service und nicht muell von None
-					self.servicelist.append( (service_name , ConfigNothing(), 0, service_ref.ref.toString()) )
+		item = len(args)
+		if item > 0:
+			if item > 2 and args[2] is True:
+				for ref in args[0]:
+					service_ref = ServiceReference(ref)
+					service_name = service_ref.getServiceName()
+					if len(service_name) and find_in_list(self.servicelist, service_name, 0) == False:
+						str_service = service_ref.ref.toString()
+						split_ref = str_service.split(":")
+						if split_ref[0] == "1" and not str_service.startswith("1:134:") and "%3a//" not in str_service:
+							self.servicelist.append((service_name, ConfigNothing(), 0, str_service))
+				self["ServiceList"].l.setList(self.servicelist)
+				self.setServiceListInfo()
+			else:
+				ref = args[0]
+				if ref:
+					service_ref = ServiceReference(ref)
+					service_name = service_ref.getServiceName()
+					if find_in_list(self.servicelist, service_name, 0) == False:
+						str_service = service_ref.ref.toString()
+						split_ref = str_service.split(":")
+						if split_ref[0] == "1" and not str_service.startswith("1:134:") and "%3a//" not in str_service:
+							self.servicelist.append((service_name, ConfigNothing(), 0, str_service))
+							self["ServiceList"].l.setList(self.servicelist)
+							self.setServiceListInfo()
+
+	def finishedProviderSelection(self, *args):
+		item = len(args)
+		if item > 1:
+			if item > 2 and args[2] is True:
+				for ref in args[0]:
+					service_ref = ServiceReference(ref)
+					service_name = service_ref.getServiceName()
+					if len(service_name) and find_in_list(self.servicelist, service_name, 0) == False:
+						split_ref = service_ref.ref.toString().split(":")
+						if split_ref[0] == "1":
+							self.servicelist.append((service_name, ConfigNothing(), 0, service_ref.ref.toString()))
+				self["ServiceList"].l.setList(self.servicelist)
+				self.setServiceListInfo()
+			else:
+				name = args[0]
+				dvbnamespace = args[1]
+				if find_in_list(self.servicelist, name, 0) == False:
+					self.servicelist.append((name, ConfigNothing(), 1, dvbnamespace))
 					self["ServiceList"].l.setList(self.servicelist)
 					self.setServiceListInfo()
 
-	def finishedProviderSelection(self, *args):
-		if len(args)>1: # bei nix selected kommt nur 1 arg zurueck (==None)
-			name=args[0]
-			dvbnamespace=args[1]
-			if find_in_list(self.servicelist, name, 0)==False:
-				self.servicelist.append( (name , ConfigNothing(), 1, dvbnamespace) )
-				self["ServiceList"].l.setList(self.servicelist)
-				self.setServiceListInfo()
-
 	def finishedCAidSelection(self, *args):
 		if len(args):
-			self.selectedcaid=args[0]
+			self.selectedcaid = args[0]
 			self.caids=""
 			if len(self.selectedcaid):
 				for item in self.selectedcaid:
 					if len(self.caids):
-						self.caids+= ", " + item[0]
+						self.caids += ", " + item[0]
 					else:
-						self.caids=item[0]
+						self.caids = item[0]
 			else:
-				self.selectedcaid=[]
-				self.caids=_("no CAId selected")
+				self.selectedcaid = []
+				self.caids = _("no CAId selected")
 		else:
-			self.selectedcaid=[]
-			self.caids=_("no CAId selected")
+			self.selectedcaid = []
+			self.caids = _("no CAId selected")
 		self["CAidList"].setText(self.caids)
 
 	def saveXML(self):
 		try:
-			fp = open(self.filename, 'w')
+			fp = file(self.filename, 'w')
 			fp.write("<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n")
 			fp.write("<ci>\n")
 			fp.write("\t<slot>\n")
@@ -252,58 +287,62 @@ class CIconfigMenu(Screen):
 					fp.write("\t\t<caid id=\"%s\" />\n" % item[0])
 			for item in self.servicelist:
 				if len(self.servicelist):
-					psname = xml_escape(item[0])
-					psattr = xml_escape(item[3])
-					if item[2]==1:
-						fp.write("\t\t<provider name=\"%s\" dvbnamespace=\"%s\" />\n" % (psname, psattr))
+					name = item[0].replace('<', '&lt;')
+					name = name.replace('&', '&amp;')
+					name = name.replace('>', '&gt;')
+					name = name.replace('"', '&quot;')
+					name = name.replace("'", '&apos;')
+					if item[2] == 1:
+						fp.write("\t\t<provider name=\"%s\" dvbnamespace=\"%s\" />\n" % (stringToXML(name), item[3]))
 					else:
-						fp.write("\t\t<service name=\"%s\" ref=\"%s\" />\n"  % (psname, psattr))
+						fp.write("\t\t<service name=\"%s\" ref=\"%s\" />\n"  % (stringToXML(name), item[3]))
 			fp.write("\t</slot>\n")
 			fp.write("</ci>\n")
-			fp.flush()
-			fsync(fp.fileno())
 			fp.close()
 		except:
-			print("[CI_Config_CI%d] xml not written" %self.ci_slot)
-			os_unlink(self.filename)
+			print "[CI_Config_CI%d] xml not written" % self.ci_slot
+			os.unlink(self.filename)
 
 	def loadXML(self):
-		if not os_path.exists(self.filename):
+		if not os.path.exists(self.filename):
+			self.setServiceListInfo()
 			return
 
 		def getValue(definitions, default):
 			Len = len(definitions)
 			return Len > 0 and definitions[Len-1].text or default
-
+		self.read_services = []
+		self.read_providers = []
+		self.usingcaid = []
+		self.ci_config = []
 		try:
-			tree = ci_parse(self.filename).getroot()
-			self.read_services=[]
-			self.read_providers=[]
-			self.usingcaid=[]
-			self.ci_config=[]
+			tree = parse(self.filename).getroot()
 			for slot in tree.findall("slot"):
 				read_slot = getValue(slot.findall("id"), False).encode("UTF-8")
-				print("ci " + read_slot)
-
-				i=0
+				i = 0
 				for caid in slot.findall("caid"):
 					read_caid = caid.get("id").encode("UTF-8")
 					self.selectedcaid.append((str(read_caid),str(read_caid),i))
-					self.usingcaid.append(int(read_caid,16))
-					i+=1
+					self.usingcaid.append(long(read_caid,16))
+					i += 1
 
 				for service in  slot.findall("service"):
-					read_service_ref = xml_unescape( service.get("ref").encode("UTF-8") )
+					read_service_name = service.get("name").encode("UTF-8")
+					read_service_ref = service.get("ref").encode("UTF-8")
 					self.read_services.append (read_service_ref)
 
 				for provider in  slot.findall("provider"):
-					read_provider_name = xml_unescape( provider.get("name").encode("UTF-8") )
-					read_provider_dvbname = xml_unescape( provider.get("dvbnamespace").encode("UTF-8") )
+					read_provider_name = provider.get("name").encode("UTF-8")
+					read_provider_dvbname = provider.get("dvbnamespace").encode("UTF-8")
 					self.read_providers.append((read_provider_name,read_provider_dvbname))
 
 				self.ci_config.append((int(read_slot), (self.read_services, self.read_providers, self.usingcaid)))
 		except:
-			print("[CI_Config_CI%d] error parsing xml..." %self.ci_slot)
+			print "[CI_Config_CI%d] error parsing xml..." % self.ci_slot
+			try:
+				os.remove(self.filename)
+			except:
+				print "[CI_Activate_Config_CI%d] error remove damaged xml..." % self.ci_slot
 
 		for item in self.read_services:
 			if len(item):
@@ -313,51 +352,45 @@ class CIconfigMenu(Screen):
 			if len(item):
 				self.finishedProviderSelection(item[0],item[1])
 
-		print(self.ci_config)
 		self.finishedCAidSelection(self.selectedcaid)
 		self["ServiceList"].l.setList(self.servicelist)
 		self.setServiceListInfo()
 
-
 class easyCIconfigMenu(CIconfigMenu):
 	skin = """
-		<screen name="easyCIconfigMenu" position="center,120" size="820,520" title="CI Assignment">
-			<ePixmap pixmap="skin_default/buttons/red.png" position="10,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/green.png" position="210,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/yellow.png" position="410,5" size="200,40" alphatest="on" />
-			<widget source="key_red" render="Label" position="10,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_green" render="Label" position="210,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_yellow" render="Label" position="410,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#a08500" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<eLabel position="10,50" size="800,1" backgroundColor="grey" />
-			<widget source="ServiceList_desc" render="Label" position="10,55" size="800,27" font="Regular;22" />
-			<eLabel position="10,85" size="800,1" backgroundColor="grey" />
-			<widget name="ServiceList" position="10,95" size="800,420" enableWrapAround="1" scrollbarMode="showOnDemand" />
-			<widget source="ServiceList_info" render="Label" position="10,95" size="800,420" font="Regular;22" />
+		<screen name="easyCIconfigMenu" position="center,center" size="560,440" title="CI assignment" >
+			<ePixmap pixmap="buttons/red.png" position="0,0" size="140,40" alphatest="on" />
+			<ePixmap pixmap="buttons/green.png" position="140,0" size="140,40" alphatest="on" />
+			<ePixmap pixmap="buttons/yellow.png" position="280,0" size="140,40" alphatest="on" />
+			<widget source="key_red" render="Label" position="0,0" zPosition="1" size="140,40" font="Regular;19" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" />
+			<widget source="key_green" render="Label" position="140,0" zPosition="1" size="140,40" font="Regular;19" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" />
+			<widget source="key_yellow" render="Label" position="280,0" zPosition="1" size="140,40" font="Regular;19" halign="center" valign="center" backgroundColor="#a08500" transparent="1" />
+			<widget source="ServiceList_desc" render="Label" position="5,50" size="550,22" font="Regular;20" backgroundColor="#25062748" transparent="1"  />
+			<widget name="ServiceList" position="5,80" size="550,300" zPosition="1" scrollbarMode="showOnDemand" />
+			<widget source="ServiceList_info" render="Label" position="5,80" size="550,300" zPosition="2" font="Regular;20" backgroundColor="#25062748" transparent="1"  />
 		</screen>"""
 
 	def __init__(self, session, ci_slot="9"):
 		CIconfigMenu.__init__(self, session, ci_slot)
-
-		self["actions"] = ActionMap(["ColorActions","SetupActions"],
-		{
-			"green": self.greenPressed,
-			"red": self.redPressed,
-			"yellow": self.yellowPressed,
-			"cancel": self.cancel
-		})
-
+		self["actions"] = ActionMap(["ColorActions","SetupActions", "MenuActions"],
+			{
+				"green": self.greenPressed,
+				"red": self.redPressed,
+				"yellow": self.yellowPressed,
+				"menu": self.menuPressed,
+				"cancel": self.cancel
+			}, -1)
 
 class CAidSelect(Screen):
 	skin = """
-		<screen name="CAidSelect" position="center,120" size="820,520" title="select CAId's">
-			<ePixmap pixmap="skin_default/buttons/red.png" position="10,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/green.png" position="210,5" size="200,40" alphatest="on" />
-			<widget source="key_red" render="Label" position="10,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_green" render="Label" position="210,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<eLabel position="10,50" size="800,1" backgroundColor="grey" />
-			<widget name="list" position="10,55" size="800,420" enableWrapAround="1" scrollbarMode="showOnDemand" />
-			<eLabel position="10,480" size="800,1" backgroundColor="grey" />
-			<widget source="introduction" render="Label" position="10,488" size="800,25" font="Regular;22" halign="center" />
+		<screen name="CAidSelect" position="center,center" size="450,440" title="select CAId's" >
+			<ePixmap pixmap="buttons/red.png" position="0,0" size="140,40" alphatest="on" />
+			<ePixmap pixmap="buttons/green.png" position="140,0" size="140,40" alphatest="on" />
+			<widget source="key_red" render="Label" position="0,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" />
+			<widget source="key_green" render="Label" position="140,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" />
+			<widget name="list" position="5,50" size="440,330" scrollbarMode="showOnDemand" />
+			<ePixmap pixmap="div-h.png" position="0,390" zPosition="1" size="450,2" />
+			<widget source="introduction" render="Label" position="0,400" size="450,40" zPosition="10" font="Regular;21" halign="center" valign="center" backgroundColor="#25062748" transparent="1" />
 		</screen>"""
 
 	def __init__(self, session, list, selected_caids):
@@ -379,8 +412,8 @@ class CAidSelect(Screen):
 
 		self["actions"] = ActionMap(["ColorActions","SetupActions"],
 		{
-			"ok": self.list.toggleSelection, 
-			"cancel": self.cancel, 
+			"ok": self.list.toggleSelection,
+			"cancel": self.cancel,
 			"green": self.greenPressed,
 			"red": self.cancel
 		}, -1)
@@ -391,7 +424,6 @@ class CAidSelect(Screen):
 
 	def greenPressed(self):
 		list = self.list.getSelectionsList()
-		print(list)
 		self.close(list)
 
 	def cancel(self):
@@ -399,31 +431,28 @@ class CAidSelect(Screen):
 
 class myProviderSelection(ChannelSelectionBase):
 	skin = """
-		<screen name="myProviderSelection" position="center,120" size="820,520" title="Select provider to add...">
-			<ePixmap pixmap="skin_default/buttons/red.png" position="10,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/green.png" position="210,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/yellow.png" position="410,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/blue.png" position="610,5" size="200,40" alphatest="on" />
-			<widget source="key_red" render="Label" position="10,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_green" render="Label" position="210,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_yellow" render="Label" position="410,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#a08500" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_blue" render="Label" position="610,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#18188b" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<eLabel position="10,50" size="800,1" backgroundColor="grey" />
-			<widget name="list" position="10,55" size="800,420" enableWrapAround="1" scrollbarMode="showOnDemand" />
-			<eLabel position="10,480" size="800,1" backgroundColor="grey" />
-			<widget source="introduction" render="Label" position="10,488" size="800,25" font="Regular;22" halign="center"  />
+		<screen name="myProviderSelection" position="center,center" size="560,440" title="Select provider to add...">
+			<ePixmap pixmap="buttons/red.png" position="0,0" size="140,40" alphatest="on" />
+			<widget source="key_red" render="Label" position="0,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" />
+			<widget source="key_green" render="Label" position="140,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" />
+			<widget source="key_yellow" render="Label" position="280,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#a08500" transparent="1" />
+			<widget source="key_blue" render="Label" position="420,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#18188b" transparent="1" />
+			<widget name="list" position="5,50" size="550,330" scrollbarMode="showOnDemand" />
+			<ePixmap pixmap="div-h.png" position="0,390" zPosition="1" size="560,2" />
+			<widget source="introduction" render="Label" position="0,400" size="560,40" zPosition="10" font="Regular;21" halign="center" valign="center" backgroundColor="#25062748" transparent="1" />
 		</screen>"""
 
 	def __init__(self, session, title):
 		ChannelSelectionBase.__init__(self, session)
 		self.onShown.append(self.__onExecCallback)
+		self.bouquet_mark_edit = EDIT_BOUQUET
 
 		self["actions"] = ActionMap(["OkCancelActions", "ChannelSelectBaseActions"],
 			{
-				"showFavourites": self.doNothing,
-				"showAllServices": self.cancel,
-				"showProviders": self.doNothing,
-				"showSatellites": self.doNothing,
+				"showFavourites": self.showFavourites,
+				"showAllServices": self.showAllServices,
+				"showProviders": self.showProviders,
+				"showSatellites": boundFunction(self.showSatellites, changeMode=True),
 				"cancel": self.cancel,
 				"ok": self.channelSelected
 			})
@@ -431,9 +460,16 @@ class myProviderSelection(ChannelSelectionBase):
 		self["key_green"] = StaticText()
 		self["key_yellow"] = StaticText()
 		self["key_blue"] = StaticText()
-		self["introduction"] = StaticText(_("Press OK to select a Provider."))
+		self["introduction"] = StaticText(_("Press OK to select a provider."))
 
-	def doNothing(self):
+
+	def showProviders(self):
+		pass
+
+	def showAllServices(self):
+		self.close(None)
+
+	def showFavourites(self):
 		pass
 
 	def __onExecCallback(self):
@@ -442,14 +478,37 @@ class myProviderSelection(ChannelSelectionBase):
 
 	def channelSelected(self): # just return selected service
 		ref = self.getCurrentSelection()
-		splited_ref=ref.toString().split(":")
-		if ref.flags == 7 and splited_ref[6] != "0":
-			self.dvbnamespace=splited_ref[6]
-			self.enterPath(ref)
-		else:
-			self.close(ref.getName(), self.dvbnamespace)
+		if ref is None: return
+		if not (ref.flags & 64):
+			splited_ref = ref.toString().split(":")
+			if ref.flags == 7 and splited_ref[6] != "0":
+				self.dvbnamespace = splited_ref[6]
+				self.enterPath(ref)
+			elif (ref.flags & 7) == 7 and 'provider' in ref.toString():
+				menu = [(_("Provider"), "provider"),(_("All services provider"), "providerlist")]
+				def addAction(choice):
+					if choice is not None:
+						if choice[1] == "provider":
+							self.close(ref.getName(), self.dvbnamespace)
+						elif choice[1] == "providerlist":
+							serviceHandler = eServiceCenter.getInstance()
+							servicelist = serviceHandler.list(ref)
+							if not servicelist is None:
+								providerlist = []
+								while True:
+									service = servicelist.getNext()
+									if not service.valid():
+										break
+									providerlist.append((service))
+								if providerlist:
+									self.close(providerlist, self.dvbnamespace, True)
+								else:
+									self.close(None)
+				self.session.openWithCallback(addAction, ChoiceBox, title = _("Select action"), list=menu)
 
-	def showSatellites(self):
+	def showSatellites(self, changeMode=False):
+		if changeMode:
+			return
 		if not self.pathChangeDisabled:
 			refstr = '%s FROM SATELLITES ORDER BY satellitePosition'%(self.service_types)
 			if not self.preEnterPath(refstr):
@@ -495,7 +554,7 @@ class myProviderSelection(ChannelSelectionBase):
 											h = _("W")
 										else:
 											h = _("E")
-										service_name = ("%d.%d" + h) % (orbpos // 10, orbpos % 10)
+										service_name = ("%d.%d" + h) % (orbpos / 10, orbpos % 10)
 								service.setName("%s - %s" % (service_name, service_type))
 								self.servicelist.addService(service)
 						self.servicelist.finishFill()
@@ -507,53 +566,94 @@ class myProviderSelection(ChannelSelectionBase):
 
 class myChannelSelection(ChannelSelectionBase):
 	skin = """
-		<screen name="myChannelSelection" position="center,120" size="820,520" title="Select service to add...">
-			<ePixmap pixmap="skin_default/buttons/red.png" position="10,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/green.png" position="210,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/yellow.png" position="410,5" size="200,40" alphatest="on" />
-			<ePixmap pixmap="skin_default/buttons/blue.png" position="610,5" size="200,40" alphatest="on" />
-			<widget source="key_red" render="Label" position="10,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_green" render="Label" position="210,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_yellow" render="Label" position="410,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#a08500" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<widget source="key_blue" render="Label" position="610,5" size="200,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#18188b" transparent="1" shadowColor="black" shadowOffset="-2,-2" />
-			<eLabel position="10,50" size="800,1" backgroundColor="grey" />
-			<widget name="list" position="10,55" size="800,420" enableWrapAround="1" scrollbarMode="showOnDemand" />
-			<eLabel position="10,480" size="800,1" backgroundColor="grey" />
-			<widget source="introduction" render="Label" position="10,488" size="800,25" font="Regular;22" halign="center" />
+		<screen name="myChannelSelection" position="center,center" size="560,440" title="Select service to add...">
+			<ePixmap pixmap="buttons/red.png" position="0,0" size="140,40" alphatest="on" />
+			<ePixmap pixmap="buttons/green.png" position="140,0" size="140,40" alphatest="on" />
+			<ePixmap pixmap="buttons/blue.png" position="420,0" size="140,40" alphatest="on" />
+			<widget source="key_red" render="Label" position="0,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="1" />
+			<widget source="key_green" render="Label" position="140,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="1" />
+			<widget source="key_yellow" render="Label" position="280,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#a08500" transparent="1" />
+			<widget source="key_blue" render="Label" position="420,0" zPosition="1" size="140,40" font="Regular;20" halign="center" valign="center" backgroundColor="#18188b" transparent="1" />
+			<widget name="list" position="5,50" size="550,330" scrollbarMode="showOnDemand" />
+			<ePixmap pixmap="div-h.png" position="0,390" zPosition="1" size="560,2" />
+			<widget source="introduction" render="Label" position="0,400" size="560,40" zPosition="10" font="Regular;21" halign="center" valign="center" backgroundColor="#25062748" transparent="1" />
 		</screen>"""
 
 	def __init__(self, session, title):
 		ChannelSelectionBase.__init__(self, session)
 		self.onShown.append(self.__onExecCallback)
+		self.bouquet_mark_edit = OFF
 
 		self["actions"] = ActionMap(["OkCancelActions", "TvRadioActions", "ChannelSelectBaseActions"],
 			{
-				"showProviders": self.doNothing,
-				"showSatellites": self.showAllServices,
-				"showAllServices": self.cancel,
+				"showProviders": self.showProviders,
+				"showSatellites": boundFunction(self.showSatellites, changeMode=True),
+				"showAllServices": self.showAllServices,
 				"cancel": self.cancel,
 				"ok": self.channelSelected,
 				"keyRadio": self.setModeRadio,
 				"keyTV": self.setModeTv
 			})
 
-		self["key_red"] = StaticText(_("Close"))
-		self["key_green"] = StaticText(_("All"))
+		self["key_red"] = StaticText(_("All"))
+		self["key_green"] = StaticText(_("Close"))
 		self["key_yellow"] = StaticText()
 		self["key_blue"] = StaticText(_("Favourites"))
-		self["introduction"] = StaticText(_("Press OK to select a Provider."))
+		self["introduction"] = StaticText(_("Press OK to select a service."))
 
 	def __onExecCallback(self):
 		self.setModeTv()
 		self.setTitle(_("Select service to add..."))
+		self.isFavourites()
 
-	def doNothing(self):
-		pass
+	def isFavourites(self):
+		ref = self.getCurrentSelection()
+		if ref:
+			if (ref.flags & 7) == 7 and "FROM BOUQUET" in ref.toString():
+				self["key_yellow"].setText(_("Add bouquet"))
+				return True
+			else:
+				self["key_yellow"].setText("")
+		return False
+
+	def showFavourites(self):
+		ChannelSelectionBase.showFavourites(self)
+		self.isFavourites()
+
+	def showProviders(self):
+		if self.isFavourites():
+			self.session.openWithCallback(self.addAllBouquet, MessageBox, _("Add services to this bouquet?"), MessageBox.TYPE_YESNO)
+
+	def addAllBouquet(self, answer):
+		ref = self.getCurrentSelection()
+		if answer and ref:
+			serviceHandler = eServiceCenter.getInstance()
+			servicelist = serviceHandler.list(ref)
+			if not servicelist is None:
+				providerlist = []
+				while True:
+					service = servicelist.getNext()
+					if not service.valid():
+						break
+					providerlist.append((service))
+				if providerlist:
+					self.close(providerlist, None, True)
+				else:
+					self.close(None)
+
+	def showAllServices(self):
+		ChannelSelectionBase.showAllServices(self)
+		self.isFavourites()
+
+	def showSatellites(self, changeMode=False):
+		if changeMode:
+			self.close(None)
 
 	def channelSelected(self): # just return selected service
 		ref = self.getCurrentSelection()
 		if (ref.flags & 7) == 7:
 			self.enterPath(ref)
+			self.isFavourites()
 		elif not (ref.flags & eServiceReference.isMarker):
 			ref = self.getCurrentSelection()
 			self.close(ref)
@@ -570,63 +670,21 @@ class myChannelSelection(ChannelSelectionBase):
 		self.close(None)
 
 def activate_all(session):
-	NUM_CI=eDVBCIInterfaces.getInstance().getNumOfSlots()
-	print("[CI_Activate] FOUND %d CI Slots " % NUM_CI)
-	if NUM_CI > 0:
-		ci_config=[]
-		def getValue(definitions, default):
-			# How many definitions are present
-			Len = len(definitions)
-			return Len > 0 and definitions[Len-1].text or default	
-
-		for ci in range(NUM_CI):
-			filename = eEnv.resolve("${sysconfdir}/enigma2/ci") + str(ci) + ".xml"
-
-			if not os_path.exists(filename):
-				print("[CI_Activate_Config_CI%d] no config file found" %ci)
-
-			try:
-				tree = ci_parse(filename).getroot()
-				read_services=set()
-				read_providers=set()
-				usingcaid=set()
-				for slot in tree.findall("slot"):
-					read_slot = getValue(slot.findall("id"), False).encode("UTF-8")
-
-					for caid in slot.findall("caid"):
-						read_caid = caid.get("id").encode("UTF-8")
-						usingcaid.add(int(read_caid,16))
-
-					for service in slot.findall("service"):
-						read_service_ref = service.get("ref").encode("UTF-8")
-						read_services.add(eServiceReference(read_service_ref))
-
-					for provider in slot.findall("provider"):
-						read_provider_name = provider.get("name").encode("UTF-8")
-						read_provider_dvbname = provider.get("dvbnamespace").encode("UTF-8")
-						read_providers.add((read_provider_name,int(read_provider_dvbname,16)))
-
-					ci_config.append((int(read_slot), (read_services, read_providers, usingcaid)))
-			except IOError:
-				print("[CI_Activate_Config_CI%d] error parsing xml..." %ci)
-
-		instance = eDVBCIInterfaces.getInstance()
-		setProviderRules = instance.setProviderRules
-		setCaidRules = instance.setCaidRules
-		setServiceRules = instance.setServiceRules
-		for item in ci_config:
-			print("[CI_Activate] activate CI%d with following settings:" %item[0])
-			print("services", [ x.toString() for x in item[1][0] ])
-			print("providers", [ x for x in item[1][1] ])
-			print("caids", [ x for x in item[1][2] ])
-			setServiceRules(item[0], item[1][0]);
-			setProviderRules(item[0], item[1][1]);
-			setCaidRules(item[0], item[1][2]);
+	cihelper.load_ci_assignment()
 
 def find_in_list(list, search, listpos=0):
 	for item in list:
-		if item[listpos]==search:
+		if item[listpos] == search:
 			return True
+	return False
+
+def isModule():
+	NUM_CI = SystemInfo["CommonInterface"]
+	if NUM_CI and NUM_CI > 0:
+		for slot in range(NUM_CI):
+			state = eDVBCI_UI.getInstance().getState(slot)
+			if state > 0:
+				return True
 	return False
 
 global_session = None
@@ -638,7 +696,7 @@ def sessionstart(reason, session):
 def autostart(reason, **kwargs):
 	global global_session
 	if reason == 0:
-		print("[CI_Assignment] activating ci configs:")
+		print "[CI_Assignment] activating ci configs:"
 		activate_all(global_session)
 	elif reason == 1:
 		global_session = None
@@ -647,16 +705,14 @@ def main(session, **kwargs):
 	session.open(CIselectMainMenu)
 
 def menu(menuid, **kwargs):
-	if menuid == "devices" and eDVBCIInterfaces.getInstance().getNumOfSlots():
-		return [(_("Common Interface Assignment"), main, "ci_assign", 21)]
-	return [ ]
+	if menuid == "cam" and isModule():
+		return [(_("Common Interface assignment"), main, "ci_assign", 11)]
+	return []
 
 def Plugins(**kwargs):
+	description = _("a gui to assign services/providers to common interface modules")
 	if config.usage.setup_level.index > 1:
-		return [PluginDescriptor( where = PluginDescriptor.WHERE_SESSIONSTART, needsRestart = False, fnc = sessionstart ),
-				PluginDescriptor( where = PluginDescriptor.WHERE_AUTOSTART, needsRestart = False, fnc = autostart ),
-				PluginDescriptor( name = "CommonInterfaceAssignment", description = _("a gui to assign services/providers/caids to common interface modules"), where = PluginDescriptor.WHERE_MENU, needsRestart = False, fnc = menu )]
-	else:
-		return [PluginDescriptor( where = PluginDescriptor.WHERE_SESSIONSTART, needsRestart = False, fnc = sessionstart ),
-				PluginDescriptor( where = PluginDescriptor.WHERE_AUTOSTART, needsRestart = False, fnc = autostart ),
-				PluginDescriptor( name = "CommonInterfaceAssignment", description = _("a gui to assign services/providers to common interface modules"), where = PluginDescriptor.WHERE_MENU, needsRestart = False, fnc = menu )]
+		description = _("a gui to assign services/providers/caids to common interface modules")
+	return [PluginDescriptor(where = PluginDescriptor.WHERE_SESSIONSTART, needsRestart = False, fnc = sessionstart),
+			PluginDescriptor(where = PluginDescriptor.WHERE_AUTOSTART, needsRestart = False, fnc = autostart),
+			PluginDescriptor(name = _("Common Interface assignment"), description = description, where = PluginDescriptor.WHERE_MENU, needsRestart = False, fnc = menu)]
