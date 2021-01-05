@@ -12,7 +12,11 @@ from Tools.Directories import SCOPE_CONFIG, SCOPE_CURRENT_LCDSKIN, SCOPE_CURRENT
 from Tools.Import import my_import
 from Tools.LoadPixmap import LoadPixmap
 
+<<<<<<< HEAD
 DEFAULT_SKIN = "GigabluePax/skin.xml" # SD hardware is no longer supported by the default skin.
+=======
+DEFAULT_SKIN = "GigabluePax/skin.xml"  # SD hardware is no longer supported by the default skin.
+>>>>>>> fb20fdba33de15bced38b625cc87ea43d7fc11e7
 EMERGENCY_SKIN = "skin_default/skin.xml"
 EMERGENCY_NAME = "Stone II"
 DEFAULT_DISPLAY_SKIN = "skin_default/skin_display.xml"
