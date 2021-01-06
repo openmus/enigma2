@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!--  File: /data/skin_text_default.xml -->
 <!--  Skin: LCD from Magic by MiLo -->
 <skin>
 <!-- main-->
@@ -58,7 +57,7 @@
 
 <!-- misc-->
 	<screen name="SimpleSummary" position="0,0" size="132,64">
-		<widget source="parent.SummaryTitle" render="Label" position="0,0" size="124,40" font="Regular;16" halign="center" valign="center" />
+		<widget source="parent.Title" render="Label" position="0,0" size="124,40" font="Regular;16" halign="center" valign="center" />
 	</screen>
 
 	<screen name="WizardSummary" position="fill">
