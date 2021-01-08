@@ -61,7 +61,7 @@ AM_CONDITIONAL(HAVE_TEMPFANCONTROL, test "$BOXTYPE" == dm8000 -o "$BOXTYPE" == d
 if test `echo "$BOXTYPE" | cut -b 1-2` == "dm"; then
 	AC_DEFINE(DREAMBOX, 1, [Dreambox hardware])
 	AC_DEFINE(KEY_PLAY_ACTUALLY_IS_KEY_PLAYPAUSE, 1,[define when rc sends a KEY_PLAY event for its KEY_PLAYPAUSE key])
-
+fi
 
 AC_ARG_WITH(textlcd,
 	AC_HELP_STRING([--with-textlcd], [use ascii based lcd, yes or no]),
@@ -78,36 +78,6 @@ AC_ARG_WITH(7segment,
 	[[TEXTSKIN="7segment"]],
 	[[TEXTSKIN="default"]]
 )
-AC_ARG_WITH(colorlcd220,
-	AC_HELP_STRING([--with-colorlcd220], [use 220x176 16bpp color display, yes or no]),
-	[[withcolorlcd220=$withval]],
-	[[withcolorlcd220=no]]
-)
-if test x"$withcolorlcd220" != xno ; then
-	AC_DEFINE(HAVE_COLORLCD220, 1,[Define when using a 220x176 color display device])cd_skin40cd_skin40
-fi
-AM_CONDITIONAL(HAVE_COLORLCD220, test x"$withcolorlcd220" != xno)
-
-AC_ARG_WITH(colorlcd400,
-	AC_HELP_STRING([--with-colorlcd400], [use 400x240 16bpp color display, yes or no]),
-	[[withcolorlcd400=$withval]],
-	[[withcolorlcd400=no]]
-)
-if test x"$withcolorlcd400" != xno ; then
-	AC_DEFINE(HAVE_COLORLCD400, 1,[Define when using a 400x240 color display device])
-fi
-
-AM_CONDITIONAL(HAVE_COLORLCD400, test x"$withcolorlcd400" != xno)
-
-AC_ARG_WITH(bwlcd255,
-	AC_HELP_STRING([--with-bwlcd255], [use 255x64 1bpp black and white display, yes or no]),
-	[[withbwlcd255=$withval]],
-	[[withbwlcd255=no]]
-)
-if test x"$withcolorlcd400" != xno ; then
-	AC_DEFINE(HAVE_COLORLCD400, 1,[Define when using a 400x176 color display device])
-fi
-AM_CONDITIONAL(HAVE_COLORLCD400, test x"$withcolorlcd400" != xno)
 AC_SUBST(TEXTSKIN)
 
 if test `echo "$BOXTYPE" | cut -b 1-7` == "mbmicro"; then
@@ -298,21 +268,17 @@ Makefile
 data/Makefile
 data/fonts/Makefile
 data/countries/Makefile
-data/extensions/Makefile
-data/gbipbox/Makefile
-data/keymaps/Makefile
 data/display/Makefile
-data/display/displaytext/Makefile
-data/display/lcd220/Makefile
-data/display/lcd400/Makefile
-data/display/lcd_skin220/Makefile
-data/display/lcd_skin400/Makefile
-data/display/vfd255/Makefile
+data/extensions/Makefile
+data/keymaps/Makefile
+data/hw_info/Makefile
+data/rc_models/Makefile
 data/skin_default/Makefile
 data/skin_default/menu/Makefile
 data/skin_default/icons/Makefile
 data/skin_default/buttons/Makefile
 data/skin_default/epg/Makefile
+data/skin_default/spinner/Makefile
 data/skin_default/LCDIcons/Makefile
 data/skin_fallback_1080/Makefile
 data/skin_fallback_1080/buttons/Makefile
@@ -390,3 +356,4 @@ tools/enigma2.sh
 enigma2.pc
 ])
 AC_OUTPUT
+
