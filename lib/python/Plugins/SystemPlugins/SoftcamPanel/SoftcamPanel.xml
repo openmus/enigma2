@@ -1,0 +1,55 @@
+<?xml version="1.0"  encoding="UTF-8" ?>
+<!--Emupanel cams -->
+<xml>
+    <plugins cont = "Cams">
+        <plugin name = "Cccam_2.0.9">
+            <url>http://viaccess.free.fr/addons-manager/cccam_r209.ipk</url>
+        </plugin>
+        <plugin name = "Cccam_2.0.11">
+            <url>http://viaccess.free.fr/addons-manager/cccam_r2.0.11.ipk</url>
+        </plugin>
+        <plugin name = "Cccam_2.1.0">
+            <url>http://viaccess.free.fr/addons-manager/cccam_r2.1.0.ipk</url>
+        </plugin>
+        <plugin name = "Cccam_2.1.1">
+            <url>http://viaccess.free.fr/addons-manager/cccam_r2.1.1.ipk</url>
+        </plugin>
+        <plugin name = "Cccam_2.1.2">
+            <url>http://viaccess.free.fr/addons-manager/cccam_r2.1.2.ipk</url>
+        </plugin>
+        <plugin name = "Cccam_2.1.3">
+            <url>http://viaccess.free.fr/addons-manager/cccam_r2.1.3.ipk</url>
+        </plugin>
+        <plugin name = "Cccam_2.2.1">
+            <url>http://viaccess.free.fr/addons-manager/CCcam2.2.1.ipk</url>
+        </plugin>
+        <plugin name = "Cccam_2.1.3_Oscam0944-rv745">
+            <url>http://viaccess.free.fr/addons-manager/CCcam-2.1.3_Oscam0944-rv745.ipk</url>
+        </plugin>
+        <plugin name = "Mgcamd_1.35a">
+            <url>http://viaccess.free.fr/addons-manager/mgcamd_r1.35a.ipk</url>
+        </plugin>
+        <plugin name = "Oscam_1.0.0">
+            <url>http://viaccess.free.fr/addons-manager/oscam-1.00.ipk</url>
+        </plugin>
+    </plugins>
+    <plugins cont = "Cam Plugins">
+        <plugin name = "Cccam_Info_V1.3C">
+            <url>http://viaccess.free.fr/addons-manager/enigma2-plugin-extensions-cccaminfo_svn-3385-r0_all.ipk</url>
+        </plugin>
+        
+        <plugin name = "OscamInfo_0.6">
+            <url>http://viaccess.free.fr/addons-manager/oscaminfo_0.6-r6_mipsel.ipk</url>
+        </plugin>
+       <plugin name = "CCcam Tools ECM Info Ver.3.1.1">
+            <url>http://viaccess.free.fr/addons-manager/enigma2-plugin-extensions-cccamtools_3.1.1-r2_mipsel.ipk</url>
+        </plugin>
+       <plugin name = "Oscam Status V 3.0">
+            <url>http://viaccess.free.fr/addons-manager/enigma2-plugin-extensions-oscamstatus_0.30-r0_mipsel.ipk</url>
+        </plugin>
+       <plugin name = "CCPrio Maker">
+            <url>http://viaccess.free.fr/addons-manager/enigma2-plugin-ccpriomaker_0.5_all.ipk</url>
+        </plugin>
+    </plugins>
+    
+</xml> 
