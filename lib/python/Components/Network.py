@@ -170,7 +170,13 @@ class Network:
 			# save configured interfacelist
 			self.configuredNetworkAdapters = self.configuredInterfaces
 			# load ns only once
-			self.loadNameserverConfig()
+			if ifaces[currif]["dhcp"] == True:
+				nameserverfilename = "/etc/resolv.conf"
+				self.loadNameserverConfig(nameserverfilename)
+			else:
+				nameserverfilename = "/etc/nameserversdns.conf"
+				self.loadNameserverConfig(nameserverfilename)
+				self.writeNameserverConfig()
 			print "read configured interface:", ifaces
 			# remove any password before info is printed to the debug log
 			safe_ifaces = self.ifaces.copy()
@@ -183,14 +189,14 @@ class Network:
 			if callback is not None:
 				callback(True)
 
-	def loadNameserverConfig(self):
+	def loadNameserverConfig(self, nameserverfilename):
 		ipRegexp = "[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}"
 		nameserverPattern = re.compile("nameserver +" + ipRegexp)
 		ipPattern = re.compile(ipRegexp)
 
 		resolv = []
 		try:
-			fp = file('/etc/resolv.conf', 'r')
+			fp = file(nameserverfilename, 'r')
 			resolv = fp.readlines()
 			fp.close()
 			self.nameservers = []
