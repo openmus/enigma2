@@ -4,8 +4,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: enigma2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-12-03 13:26+0100\n"
-"PO-Revision-Date: 2020-12-27 12:25+0100\n"
+"POT-Creation-Date: 2021-02-17 20:18+0100\n"
+"PO-Revision-Date: 2021-02-20 16:11+0100\n"
 "Last-Translator: Luis A. Martínez <luis.a.martinez@gmail.com>\n"
 "Language-Team: LAMS\n"
 "Language: gl\n"
@@ -3925,11 +3925,11 @@ msgid "Exit input device selection."
 msgstr "Saír da selección de dispositivo de entrada."
 
 msgid "Exit media player?"
-msgstr "Saír do reprodutor de medios?"
+msgstr "Saír do reprodutor multimedia?"
 
 #
 msgid "Exit mediaplayer"
-msgstr "Saír do reprodutor de medios"
+msgstr "Saír do reprodutor multimedia"
 
 #
 msgid "Exit movie list"
@@ -4359,9 +4359,6 @@ msgstr "Opcións adicionais"
 
 msgid "G"
 msgstr "G"
-
-msgid "GStreamer version: "
-msgstr "Versión do GStreamer: "
 
 #
 msgid "GUI Settings"
@@ -5071,6 +5068,9 @@ msgstr "Flash interno"
 msgid "Internal hdd only"
 msgstr "Só hdd interno"
 
+msgid "Internet (ntp)"
+msgstr "Internet (ntp)"
+
 msgid "Interval between keys when repeating:"
 msgstr "Intervalo entre teclas ao repetir:"
 
@@ -5612,7 +5612,13 @@ msgstr "Mayotte"
 
 #
 msgid "Media player"
-msgstr "Reprodutor"
+msgstr "Reprodutor multimedia"
+
+msgid "Media player: GStreamer, version "
+msgstr "Reprodutor multimedia: GStreamer, versión "
+
+msgid "Media player: ffmpeg, version "
+msgstr "Reprodutor multimedia: ffmpeg, versión "
 
 #
 msgid "Media scanner"
@@ -5919,6 +5925,9 @@ msgstr "NON"
 #
 msgid "NOW"
 msgstr "AGORA"
+
+msgid "NTP Hostname"
+msgstr "Nome de servidor NTP"
 
 #
 msgid "NTSC"
@@ -6271,9 +6280,6 @@ msgstr "Noruegués"
 #
 msgid "Not Installed"
 msgstr "Non instalado"
-
-msgid "Not Required"
-msgstr "Non requirido"
 
 msgid "Not associated"
 msgstr "Non asociado"
@@ -8363,6 +8369,9 @@ msgstr "Seleccionar a velocidade da antena para cambiar de satélite."
 msgid "Select how the satellite dish is set up. i.e. fixed dish, single LNB, DiSEqC switch, positioner, etc."
 msgstr "Seleccionar como se configura a antena parabólica, é dicir, plato fixo, LNB único, conmutador DiSEqC, posicionador, etc."
 
+msgid "Select how you want your receiver to keep the correct time, either from the DVB transponder, or from the internet using NTP. Or use Auto, which will favour using NTP, but will fall back to transponder time when no internet connection is available."
+msgstr "Selecciona como queres que o teu receptor manteña a hora correcta, ben desde o transpondedor DVB, ben desde un servidor NTP en internet. Ou usa Auto, que favorece o uso de NTP pero usa a hora do transpondedor cando non haxa conexión a internet."
+
 msgid "Select input device"
 msgstr "Seleccionar dispositivo de entrada"
 
@@ -8931,7 +8940,7 @@ msgid "Show latest update log"
 msgstr "Amosar último rexistro de actualización"
 
 msgid "Show media player on main menu"
-msgstr "Amosar reprodutor de medios no menú principal"
+msgstr "Amosar reprodutor multimedia no menú principal"
 
 msgid "Show menu or plugin numbers"
 msgstr "Amosar números de menú ou complemento"
@@ -8983,6 +8992,9 @@ msgstr "Amosar iconas de reloj da gravación"
 
 msgid "Show record indicator"
 msgstr "Amosar indicador de gravación"
+
+msgid "Show satellites list"
+msgstr "Amosar lista de satélites"
 
 msgid "Show screen path"
 msgstr "Amosar ruta da pantalla"
@@ -9587,7 +9599,7 @@ msgstr "Deter a proba"
 
 #
 msgid "Stop testing plane after # failed transponders"
-msgstr "Deter as probas despois de # transpordedores fallidos"
+msgstr "Deter as probas despois de # transpondedores fallidos"
 
 #
 msgid "Stop testing plane after # successful transponders"
@@ -10013,6 +10025,9 @@ msgstr ""
 msgid "The following files were found..."
 msgstr "Atopáronse os seguintes ficheiros…"
 
+msgid "The hostname or the IP address of the NTP server to synchronise the time with."
+msgstr "Nome ou o enderezo IP do servidor NTP co que sincronizar a hora."
+
 msgid ""
 "The network wizard extension is not installed!\n"
 "Please install it."
@@ -10176,6 +10191,15 @@ msgstr "O disco DVD-RW está xa formateado - reformatear borrará todos os conti
 #, python-format
 msgid "This field allows you to search an additional symbol rate up to %s."
 msgstr "Este campo permíteche buscar unha tasa adicional de símbolo ata %s."
+
+msgid ""
+"This image is intended for developers and testers.\n"
+"No support will be provided!\n"
+"Do you understand this?"
+msgstr ""
+"Esta imaxe está destinada a desevolvedores e probadores\n"
+"Non ten soporte!\n"
+"Entendes isto?"
 
 msgid ""
 "This info is for developers only.\n"
@@ -10423,6 +10447,9 @@ msgstr "Hora"
 msgid "Time scale"
 msgstr "Escala de tempo"
 
+msgid "Time synchronization method"
+msgstr "Método de sincronización horaria"
+
 #
 msgid "Time zone"
 msgstr "Zona horaria"
@@ -10636,6 +10663,10 @@ msgstr "Modo de transmisión"
 msgid "Transponder"
 msgstr "Transpondedor"
 
+#
+msgid "Transponder Time"
+msgstr "Hora do transpondedor"
+
 msgid "Transport Stream Type"
 msgstr "Tipo de fluxo de transporte"
 
@@ -10657,10 +10688,10 @@ msgstr "Verdadeiro"
 
 #
 msgid "Try to find used transponders in cable network.. please wait..."
-msgstr "Intenta atopar transponders en uso na rede de cable. Por favor, espera…"
+msgstr "Intenta atopar transpondedores en uso na rede de cable. Por favor, espera…"
 
 msgid "Try to find used transponders in terrestrial network... please wait..."
-msgstr "Intenta atopar transponders en uso na rede de terrestre. Por favor, espera…"
+msgstr "Intenta atopar transpondedores en uso na rede de terrestre. Por favor, espera…"
 
 #
 msgid "Trying to download a new packetlist. Please wait..."
